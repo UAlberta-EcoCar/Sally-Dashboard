@@ -1,2 +1,2 @@
 # Sally-Dashboard
-Contains code (and maybe) for the Sally dashboard.
+Contains code (and maybe hardware) for the Sally dashboard.
