@@ -1,0 +1,56 @@
+[package]
+name = "Dashboard"
+version = "0.1.0"
+edition = "2024"
+authors = ["Dash Campbell"]
+
+[dependencies]
+embassy-stm32 = { version = "0.4.0", features = [
+    "defmt",
+    "time-driver-any",
+    "stm32g491ke",
+    "memory-x",
+    "exti",
+] }
+embassy-sync = { version = "0.7.2", features = ["defmt"] }
+embassy-executor = { version = "0.9.0", features = [
+    "arch-cortex-m",
+    "executor-thread",
+    "defmt",
+] }
+embassy-time = { version = "0.5.0", features = [
+    "defmt",
+    "defmt-timestamp-uptime",
+    "tick-hz-32_768",
+] }
+embassy-futures = { version = "0.1.2" }
+static_cell = "2.0.0"
+
+# Logging
+defmt = "1.0.1"
+defmt-rtt = "1.0.0"
+
+cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7.0"
+embedded-hal = "1.0.0"
+embedded-can = { version = "0.4" }
+panic-probe = { version = "1.0.0", features = ["print-defmt"] }
+
+# Encoding & Decoding
+bincode = { version = "2.0.1", default-features = false, features = ["derive"] }
+
+# Graphics
+display-interface-spi = { version = "0.5" }
+embedded-graphics = { version = "0.8.1", features = ["defmt"] }
+eg-seven-segment = "0.2.0"
+itoa = "1.0.15"
+
+[profile.release]
+debug = 2
+codegen-units = 1
+lto = "fat"
+# Only uncomment one of these
+# See https://docs.rust-embedded.org/book/unsorted/speed-vs-size.html
+# for choosing opt-level
+opt-level = 's' # optimize for size
+# opt-level = '3' # optimize for speed
