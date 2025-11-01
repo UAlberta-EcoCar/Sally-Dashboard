@@ -1,5 +1,5 @@
 #![no_std]
 
-pub mod can;
 pub mod display;
+pub mod eco_can;
 pub mod led;
