@@ -52,7 +52,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./target/thumbv7em-none-eabihf/doc
+          path: './Software/Dashbord/target/thumbv7em-none-eabihf/doc'
   deploy:
     environment:
       name: github-pages
