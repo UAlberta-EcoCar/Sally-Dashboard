@@ -22,22 +22,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ github.workspace }}/Software/Dashboard
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust Target
+        run: rustup target add thumbv7em-none-eabihf
+      - name: Configure cache
+        uses: Swatinem/rust-cache@v2
+      - name: Setup pages
+        id: pages
+        uses: actions/configure-pages@v5
+      - name: Clean docs folder
+        run: cargo clean --doc
+      - name: Build docs
+        run: cargo doc --no-deps
+      - name: Add redirect
+        run: echo '<meta http-equiv="refresh" content="0;url=Dashboard/index.html">' > ./target/thumbv7em-none-eabihf/doc/index.html
+      - name: Remove lock file
+        run: rm ./target/thumbv7em-none-eabihf/doc/.lock
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/thumbv7em-none-eabihf/doc
   deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          # Upload entire repository
-          path: './Software/Dashboard/target/thumbv7em-none-eabihf/doc/Dashboard/'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
