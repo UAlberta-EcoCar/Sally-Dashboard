@@ -1,11 +1,17 @@
 #![no_std]
 #![no_main]
 use defmt::*;
+use display_interface_spi::SPIInterface;
 use embassy_executor::Spawner;
+use embassy_stm32::can::Can;
+use embassy_stm32::gpio::{Level, Output, Speed};
 use embassy_stm32::peripherals::*;
+use embassy_stm32::spi::{self, Spi};
 use embassy_stm32::time::Hertz;
 use embassy_stm32::{Config, bind_interrupts, can};
-use embassy_time::Timer;
+use embassy_time::{Delay, Timer};
+use embedded_hal_bus::spi::ExclusiveDevice;
+use ili9488_rs::{Ili9488, Orientation, Rgb666Mode};
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
@@ -14,14 +20,14 @@ bind_interrupts!(struct Irqs {
 });
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize Peripherals
     ////////////////////////////////
     let mut config = Config::default();
     {
         use embassy_stm32::rcc::*;
-        // TODO: Configure Clock
+        // TODO: Configure Clock for 160 MHz
         config.rcc.hse = Some(Hse {
             freq: Hertz(24_000_000),
             mode: HseMode::Oscillator,
@@ -39,34 +45,87 @@ async fn main(_spawner: Spawner) {
     }
     let peripherals = embassy_stm32::init(config);
 
-    let mut can =
-        can::CanConfigurator::new(peripherals.FDCAN2, peripherals.PB5, peripherals.PB6, Irqs);
+    ////////////////////////////////
+    // Initialize CAN
+    ////////////////////////////////
+    let can_rx = peripherals.PB5;
+    let can_tx = peripherals.PB6;
+    let mut can = can::CanConfigurator::new(peripherals.FDCAN2, can_rx, can_tx, Irqs);
 
     can.properties().set_extended_filter(
         can::filter::ExtendedFilterSlot::_0,
         can::filter::ExtendedFilter::accept_all_into_fifo1(),
     );
-
     // 250k bps
     can.set_bitrate(250_000);
 
     let use_fd = false;
-
     // 1M bps
     if use_fd {
         can.set_fd_data_bitrate(1_000_000, false);
     }
+    info!("Configured CAN");
+    let can = can.start(can::OperatingMode::NormalOperationMode);
 
-    info!("Configured");
+    ////////////////////////////////
+    // Initialize SPI
+    ////////////////////////////////
+    let mut spi_config = spi::Config::default();
+    spi_config.frequency = Hertz::mhz(40);
+    spi_config.miso_pull = embassy_stm32::gpio::Pull::Up;
+    spi_config.gpio_speed = Speed::VeryHigh;
 
-    let mut can = can.start(can::OperatingMode::NormalOperationMode);
+    let spi_sck = peripherals.PA5;
+    let spi_miso = peripherals.PA6;
+    let spi_mosi = peripherals.PA7;
 
-    let mut i = 0;
+    let spi = Spi::new_blocking(peripherals.SPI1, spi_sck, spi_mosi, spi_miso, spi_config);
+
+    info!("Configured SPI Peripherals");
+
+    ////////////////////////////////
+    // Initialize Touch Screen Peripherals
+    ////////////////////////////////
+
+    ////////////////////////////////
+    // Initialize Screen Peripherals
+    ////////////////////////////////
+    let lcd_cs = peripherals.PA4;
+    let lcd_reset = peripherals.PB0;
+    let lcd_bright = peripherals.PA2;
+    let lcd_dc = peripherals.PA3;
+
+    let lcd_cs = Output::new(lcd_cs, Level::High, Speed::VeryHigh);
+    let lcd_reset = Output::new(lcd_reset, Level::Low, Speed::VeryHigh);
+    let _ = Output::new(lcd_bright, Level::High, Speed::VeryHigh);
+    let lcd_dc = Output::new(lcd_dc, Level::Low, Speed::VeryHigh);
+    let mut delay = Delay;
+
+    // Turn on LCD Display
+    let spi_device = ExclusiveDevice::new_no_delay(spi, lcd_cs).unwrap();
+    let spi_interface = SPIInterface::new(spi_device, lcd_dc);
+    let _display = Ili9488::new(
+        spi_interface,
+        lcd_reset,
+        &mut delay,
+        Orientation::LandscapeFlipped,
+        Rgb666Mode,
+    );
+    info!("Initialized ILI9488 Display");
+
+    ////////////////////////////////
+    // Spawn Threads
+    ////////////////////////////////
+    spawner.spawn(can_task(can)).unwrap();
+}
+
+#[embassy_executor::task]
+async fn can_task(mut can: Can<'static>) {
     let mut last_read_ts = embassy_time::Instant::now();
 
     // Use the FD API's even if we don't get FD packets.
     loop {
-        let frame = can::frame::FdFrame::new_extended(0x123456F, &[i; 16]).unwrap();
+        let frame = can::frame::FdFrame::new_extended(0x123456F, &[0; 16]).unwrap();
         info!("Writing frame using FD API");
         _ = can.write_fd(&frame).await;
 
@@ -86,10 +145,5 @@ async fn main(_spawner: Spawner) {
         }
 
         Timer::after_millis(250).await;
-
-        i += 1;
-        if i > 4 {
-            break;
-        }
     }
 }

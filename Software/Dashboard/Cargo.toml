@@ -32,6 +32,7 @@ defmt-rtt = "1.0.0"
 cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.0"
 embedded-hal = "1.0.0"
+embedded-hal-bus = "0.3"
 embedded-can = { version = "0.4" }
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 
@@ -39,6 +40,7 @@ panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 bincode = { version = "2.0.1", default-features = false, features = ["derive"] }
 
 # Graphics
+ili9488-rs = { version = "0.1.1" }
 display-interface-spi = { version = "0.5" }
 embedded-graphics = { version = "0.8.1", features = ["defmt"] }
 eg-seven-segment = "0.2.0"

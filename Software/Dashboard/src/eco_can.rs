@@ -26,6 +26,31 @@
 //! `#[repr(C)]` Make Rust use the same memory layout for this struct as C to ensure compatility.
 //! For more information: [https://doc.rust-lang.org/nomicon/other-reprs.html](https://doc.rust-lang.org/nomicon/other-reprs.html)
 
+/// The length of the package in bytes, can be up to 64 bytes.
+///
+/// pub structs must be a certain size for FDCAN to transfer
+/// The following package sizes (in bytes) are 0, 1, 2, 3, 4, 5, 6,
+/// 7, 8, 12, 16, 20, 24, 32, 48, 64.
+#[allow(non_camel_case_types)]
+pub enum FDCANLength {
+    BYTES_0 = 0,
+    BYTES_1 = 1,
+    BYTES_2 = 2,
+    BYTES_3 = 3,
+    BYTES_4 = 4,
+    BYTES_5 = 5,
+    BYTES_6 = 6,
+    BYTES_7 = 7,
+    BYTES_8 = 8,
+    BYTES_12 = 12,
+    BYTES_16 = 16,
+    BYTES_20 = 20,
+    BYTES_24 = 24,
+    BYTES_32 = 32,
+    BYTES_48 = 48,
+    BYTES_64 = 64,
+}
+
 /// Prerequisite trait for FDCAN Packages
 ///
 /// Sets the ID and number of bytes for a CAN package.
@@ -36,7 +61,7 @@ pub trait FDCANPack: bincode::enc::Encode + Clone {
     /// pub structs must be a certain size for FDCAN to transfer
     /// The following package sizes (in bytes) are 0, 1, 2, 3, 4, 5, 6,
     /// 7, 8, 12, 16, 20, 24, 32, 48, 64.
-    const FDCAN_BYTES: u8;
+    const FDCAN_BYTES: FDCANLength;
     /// 12 bit ID
     ///
     /// Reserved IDs up to 0x01F
@@ -49,9 +74,9 @@ pub trait FDCANPack: bincode::enc::Encode + Clone {
     /// this range you must set the mask to
     /// 0x7F0 = 0b11111110000
     ///
-    /// because you care that the bits [10:4]
+    /// because you care that the bits \[10:4\]
     /// of the can id are exactly the same as
-    /// bits [10:4] in 0x010/0x01F but the last four bits [3:0] can be 0 or 1
+    /// bits \[10:4\] in 0x010/0x01F but the last four bits \[3:0\] can be 0 or 1
     /// The same logic will be applied henceforth
     const FDCAN_ID: u16;
 }
@@ -79,7 +104,7 @@ pub struct FDCAN_FetPack_t {
     pub out_curr: u32,
 }
 impl FDCANPack for FDCAN_FetPack_t {
-    const FDCAN_BYTES: u8 = 24;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_24;
     const FDCAN_ID: u16 = 0x010;
 }
 
@@ -91,7 +116,7 @@ pub struct ECOCAN_RelPackChrg_t {
     cap_coloumbs: i32,
 }
 impl FDCANPack for ECOCAN_RelPackChrg_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x013;
 }
 
@@ -103,7 +128,7 @@ pub struct FDCAN_RelPackNrg_t {
     pub cap_joules: i32,
 }
 impl FDCANPack for FDCAN_RelPackNrg_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x014;
 }
 
@@ -115,7 +140,7 @@ pub struct FDCAN_RelPackMtr_t {
     pub mtr_curr: u32,
 }
 impl FDCANPack for FDCAN_RelPackMtr_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x015;
 }
 
@@ -127,7 +152,7 @@ pub struct FDCAN_RelPackCap_t {
     pub cap_curr: i32,
 }
 impl FDCANPack for FDCAN_RelPackCap_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x016;
 }
 
@@ -139,7 +164,7 @@ pub struct FDCAN_RelPackFc_t {
     pub fc_curr: u32,
 }
 impl FDCANPack for FDCAN_RelPackFc_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x017;
 }
 
@@ -151,7 +176,7 @@ pub struct FDCAN_FccPack1_t {
     pub fc_press: u32,
 }
 impl FDCANPack for FDCAN_FccPack1_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x020;
 }
 
@@ -163,7 +188,7 @@ pub struct FDCAN_FccPack2_t {
     pub fan_rpm2: u32,
 }
 impl FDCANPack for FDCAN_FccPack2_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x021;
 }
 
@@ -175,7 +200,7 @@ pub struct FDCAN_FccPack3_t {
     pub bme_humid: u32,
 }
 impl FDCANPack for FDCAN_FccPack3_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x022;
 }
 
@@ -194,7 +219,7 @@ pub struct ECOCAN_H2Pack1_t {
     pub h2_sense_4: u16,
 }
 impl FDCANPack for ECOCAN_H2Pack1_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x030;
 }
 
@@ -208,7 +233,7 @@ pub struct ECOCAN_H2Pack2_t {
     pub imon_12v: u16,
 }
 impl FDCANPack for ECOCAN_H2Pack2_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x031;
 }
 
@@ -219,7 +244,7 @@ pub struct ECOCAN_H2_ARM_ALARM_t {
     pub h2_alarm_armed: u8,
 }
 impl FDCANPack for ECOCAN_H2_ARM_ALARM_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_1;
     const FDCAN_ID: u16 = 0x032;
 }
 
@@ -231,7 +256,7 @@ pub struct FDCAN_BOOSTPack_t {
     pub in_volt: u32,
 }
 impl FDCANPack for FDCAN_BOOSTPack_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x040;
 }
 
@@ -243,7 +268,7 @@ pub struct FDCAN_BOOSTPack2_t {
     pub out_volt: u32,
 }
 impl FDCANPack for FDCAN_BOOSTPack2_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x041;
 }
 
@@ -255,7 +280,7 @@ pub struct FDCAN_BOOSTPack3_t {
     pub joules: u32,
 }
 impl FDCANPack for FDCAN_BOOSTPack3_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_8;
     const FDCAN_ID: u16 = 0x042;
 }
 
@@ -267,6 +292,6 @@ pub struct FDCAN_BATTPack2_t {
     pub out_volt: u16,
 }
 impl FDCANPack for FDCAN_BATTPack2_t {
-    const FDCAN_BYTES: u8 = 8;
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_4;
     const FDCAN_ID: u16 = 0x050;
 }
