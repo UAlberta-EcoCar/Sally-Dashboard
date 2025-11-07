@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+use dashboard::display_mod::Ili9488Display;
 use defmt::*;
 use display_interface_spi::SPIInterface;
 use embassy_executor::Spawner;
@@ -79,7 +80,15 @@ async fn main(spawner: Spawner) {
     let spi_miso = peripherals.PA6;
     let spi_mosi = peripherals.PA7;
 
-    let spi = Spi::new_blocking(peripherals.SPI1, spi_sck, spi_mosi, spi_miso, spi_config);
+    let spi = Spi::new(
+        peripherals.SPI1,
+        spi_sck,
+        spi_mosi,
+        spi_miso,
+        peripherals.DMA1_CH1,
+        peripherals.DMA1_CH2,
+        spi_config,
+    );
 
     info!("Configured SPI Peripherals");
 
@@ -104,19 +113,28 @@ async fn main(spawner: Spawner) {
     // Turn on LCD Display
     let spi_device = ExclusiveDevice::new_no_delay(spi, lcd_cs).unwrap();
     let spi_interface = SPIInterface::new(spi_device, lcd_dc);
-    let _display = Ili9488::new(
+    let display = Ili9488::new(
         spi_interface,
         lcd_reset,
         &mut delay,
         Orientation::LandscapeFlipped,
         Rgb666Mode,
-    );
+    )
+    .unwrap();
     info!("Initialized ILI9488 Display");
 
     ////////////////////////////////
     // Spawn Threads
     ////////////////////////////////
     spawner.spawn(can_task(can)).unwrap();
+    spawner.spawn(display_task(display)).unwrap();
+}
+
+#[embassy_executor::task]
+async fn display_task(mut display: Ili9488Display) {
+    display
+        .clear_screen_fast(ili9488_rs::Rgb111::BLACK)
+        .unwrap();
 }
 
 #[embassy_executor::task]

@@ -1,4 +1,3 @@
-#![no_std]
 //! Module for CAN communication
 //! ### CAN Package Information
 //! A CAN package is setup like this:
@@ -10,7 +9,7 @@
 //!     // Package Data
 //! }
 //! impl FDCANPack for FDCAN_FetPack_t {
-//!    const FDCAN_BYTES: u8 = BYTE_LENGTH; // set this to the size of the package in bytes
+//!    const FDCAN_BYTES: FDCANLength = BYTE_LENGTH; // set this to the size of the package in bytes
 //!    const FDCAN_ID: u16 = CAN_ID;    // the ID of the CAN package
 //! }
 //! ```
