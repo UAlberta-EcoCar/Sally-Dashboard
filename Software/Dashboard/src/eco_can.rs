@@ -25,6 +25,51 @@
 //! `#[repr(C)]` Make Rust use the same memory layout for this struct as C to ensure compatility.
 //! For more information: [https://doc.rust-lang.org/nomicon/other-reprs.html](https://doc.rust-lang.org/nomicon/other-reprs.html)
 
+/// Bit Definitions for FET State
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+pub enum FetBit {
+    ALL_FET_OFF = 0x00,
+    FUELCELL_FET = 0x01,
+    CAP_FET = 0x02,
+    RES_FET = 0x04,
+    OUT_FET = 0x08,
+}
+
+/// FET States
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+pub enum FetState {
+    FET_STBY = FetBit::ALL_FET_OFF as u8,
+    FET_CHRGE = FetBit::FUELCELL_FET as u8 | FetBit::CAP_FET as u8 | FetBit::RES_FET as u8,
+    FET_RUN = FetBit::FUELCELL_FET as u8
+        | FetBit::CAP_FET as u8
+        | FetBit::RES_FET as u8
+        | FetBit::OUT_FET as u8,
+}
+
+/// Bit Definitions for REL Board State
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+pub enum RelayBit {
+    ALL_RELAY_OFF = 0x00,
+    CAP_RELAY = 0x01,
+    RES_RELAY = 0x02,
+    DSCHRGE_RELAY = 0x04,
+    MTR_RELAY = 0x08,
+}
+
+/// Relay Board State
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+pub enum RelayState {
+    RELAY_STBY = RelayBit::ALL_RELAY_OFF as u8,
+    RELAY_STRTP = RelayBit::RES_RELAY as u8 | RelayBit::DSCHRGE_RELAY as u8,
+    RELAY_CHRGE = RelayBit::RES_RELAY as u8,
+    RELAY_RUN =
+        RelayBit::CAP_RELAY as u8 | RelayBit::DSCHRGE_RELAY as u8 | RelayBit::MTR_RELAY as u8,
+}
+
 /// The length of the package in bytes, can be up to 64 bytes.
 ///
 /// pub structs must be a certain size for FDCAN to transfer

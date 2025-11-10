@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-use dashboard::display_mod::Ili9488Display;
+use dashboard::display_mod::display_task;
 use defmt::*;
 use display_interface_spi::SPIInterface;
 use embassy_executor::Spawner;
@@ -95,6 +95,11 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize Touch Screen Peripherals
     ////////////////////////////////
+    let touch_cs = peripherals.PA9;
+    let _touch_irq = peripherals.PA8;
+
+    // CS is Active Low
+    let _touch_cs = Output::new(touch_cs, Level::High, Speed::VeryHigh);
 
     ////////////////////////////////
     // Initialize Screen Peripherals
@@ -131,35 +136,25 @@ async fn main(spawner: Spawner) {
 }
 
 #[embassy_executor::task]
-async fn display_task(mut display: Ili9488Display) {
-    display.clear_screen_fast(ili9488_rs::Rgb111::RED).unwrap();
-}
-
-#[embassy_executor::task]
 async fn can_task(mut can: Can<'static>) {
     let mut last_read_ts = embassy_time::Instant::now();
 
     // Use the FD API's even if we don't get FD packets.
     loop {
-        let frame = can::frame::FdFrame::new_extended(0x123456F, &[0; 16]).unwrap();
-        info!("Writing frame using FD API");
-        _ = can.write_fd(&frame).await;
-
         match can.read_fd().await {
             Ok(envelope) => {
                 let (ts, rx_frame) = (envelope.ts, envelope.frame);
                 let delta = (ts - last_read_ts).as_millis();
                 last_read_ts = ts;
                 info!(
-                    "Rx: {} {:02x} --- using FD API {}ms",
+                    "Rx: {} {:02x} --- using FD API {} ms",
                     rx_frame.header().len(),
                     rx_frame.data()[0..rx_frame.header().len() as usize],
                     delta,
                 )
             }
-            Err(_err) => error!("Error in frame"),
+            Err(err) => error!("Error in frame: {}", err),
         }
-
-        Timer::after_millis(250).await;
+        Timer::after_millis(1).await;
     }
 }
