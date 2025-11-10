@@ -22,24 +22,27 @@ bind_interrupts!(struct Irqs {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    ////////////////////////////////
+    /////////////////////////////////////////////////
     // Initialize Peripherals
+    /////////////////////////////////////////////////
+
+    ////////////////////////////////
+    // Initialize Clock
     ////////////////////////////////
     let mut config = Config::default();
     {
         use embassy_stm32::rcc::*;
-        // TODO: Configure Clock for 160 MHz
         config.rcc.hse = Some(Hse {
-            freq: Hertz(24_000_000),
-            mode: HseMode::Oscillator,
+            freq: Hertz(8_000_000),
+            mode: HseMode::Bypass,
         });
         config.rcc.pll = Some(Pll {
             source: PllSource::HSE,
-            prediv: PllPreDiv::DIV6,
-            mul: PllMul::MUL85,
-            divp: None,
-            divq: Some(PllQDiv::DIV8), // 42.5 Mhz for fdcan.
-            divr: Some(PllRDiv::DIV2), // Main system clock at 170 MHz
+            prediv: PllPreDiv::DIV1,
+            mul: PllMul::MUL40,
+            divp: Some(PllPDiv::DIV2), // 160 MHz PLLP
+            divq: Some(PllQDiv::DIV4), // 80 MHz PLLQ
+            divr: Some(PllRDiv::DIV2), // Main system clock at 160 MHz
         });
         config.rcc.mux.fdcansel = mux::Fdcansel::PLL1_Q;
         config.rcc.sys = Sysclk::PLL1_R;
@@ -57,16 +60,13 @@ async fn main(spawner: Spawner) {
         can::filter::ExtendedFilterSlot::_0,
         can::filter::ExtendedFilter::accept_all_into_fifo1(),
     );
-    // 250k bps
-    can.set_bitrate(250_000);
+    // Nominal Baud Rate: 1MHz
+    can.set_bitrate(1_000_000);
 
-    let use_fd = false;
-    // 1M bps
-    if use_fd {
-        can.set_fd_data_bitrate(1_000_000, false);
-    }
-    info!("Configured CAN");
+    // FD CAN Clock Mux: 8MHz
+    can.set_fd_data_bitrate(8_000_000, false);
     let can = can.start(can::OperatingMode::NormalOperationMode);
+    info!("Configured CAN");
 
     ////////////////////////////////
     // Initialize SPI
@@ -132,9 +132,7 @@ async fn main(spawner: Spawner) {
 
 #[embassy_executor::task]
 async fn display_task(mut display: Ili9488Display) {
-    display
-        .clear_screen_fast(ili9488_rs::Rgb111::BLACK)
-        .unwrap();
+    display.clear_screen_fast(ili9488_rs::Rgb111::RED).unwrap();
 }
 
 #[embassy_executor::task]

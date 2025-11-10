@@ -46,7 +46,7 @@ jobs:
       - name: Build docs
         run: cargo doc --no-deps
       - name: Add redirect
-        run: echo '<meta http-equiv="refresh" content="0;url=Dashboard/index.html">' > ./target/thumbv7em-none-eabihf/doc/index.html
+        run: echo '<meta http-equiv="refresh" content="0;url=dashboard/index.html">' > ./target/thumbv7em-none-eabihf/doc/index.html
       - name: Remove lock file
         run: rm ./target/thumbv7em-none-eabihf/doc/.lock
       - name: Upload artifact
