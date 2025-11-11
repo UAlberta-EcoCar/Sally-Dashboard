@@ -9,21 +9,21 @@
 //!
 //! # How rendering works
 //! The ILIxxxx IC drivers operate using commands and data. The command list can be found
-//!  [here](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf?pages=140)
+//!  [here](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf#pages=140)
 //!
 //! What happens is the following:
 //!
 //! - A drawing window is prepared (with the 2 opposite corner coordinates), using three commands.
-//!     - The [column address set](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf?pages=175)
+//!     - The [column address set](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf#pages=175)
 //!     command.
-//!     - The [page address set](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf?pages=177)
+//!     - The [page address set](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf#pages=177)
 //!     command.
-//!     - The [memory write](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf?pages=179)
+//!     - The [memory write](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf#pages=179)
 //!     command begins the transmission of pixel data to the area defined by the column/page address set commands.
 //! - The starting point for drawint is the top left corner of this window
 //! - Every set of bytes received is intepreted as a pixel value in the current display format (Rgb666, Rgb565, etc.).
 //! How pixels are formatted into bytes depends on the display format and interface type. More information can be
-//! found in the [Display Data Format](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf?pages=119)
+//! found in the [Display Data Format](https://www.displayfuture.com/Display/datasheet/controller/ILI9488.pdf#pages=119)
 //! section of the ILI9488 datasheet.
 //! - As soon as a pixel is received, an internal counter is incremented,
 //!   and the next word will fill the next pixel (the adjacent on the right, or
