@@ -1,4 +1,8 @@
-# Sally-Dashboard
-Contains code (and maybe hardware) for the Sally dashboard.
+# Sally Dashboard
+Contains the firmware for the Sally dashboard.
 
-Documentation: [https://ualberta-ecocar.github.io/Sally-Dashboard/Dashboard/index.html](https://ualberta-ecocar.github.io/Sally-Dashboard/Dashboard/index.html)
+Firmware Documentation: [https://ualberta-ecocar.github.io/Sally-Dashboard/dashboard/index.html](https://ualberta-ecocar.github.io/Sally-Dashboard/dashboard/index.html)
+
+Design Document: [https://miro.com/app/board/uXjVJLxO6GU=/](https://miro.com/app/board/uXjVJLxO6GU=/)
+
+Future Dashboard Preview: [https://dashcampbell.github.io/EcoCar-Sally-Dashboard-Preview/](https://dashcampbell.github.io/EcoCar-Sally-Dashboard-Preview/)

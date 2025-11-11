@@ -32,6 +32,7 @@ async fn main(spawner: Spawner) {
     let mut config = Config::default();
     {
         use embassy_stm32::rcc::*;
+        // Use external 8 MHz crystal osscillator
         config.rcc.hse = Some(Hse {
             freq: Hertz(8_000_000),
             mode: HseMode::Bypass,
@@ -126,11 +127,12 @@ async fn main(spawner: Spawner) {
         Rgb666Mode,
     )
     .unwrap();
-    info!("Initialized ILI9488 Display");
+    info!("Configured ILI9488 Display");
 
     ////////////////////////////////
-    // Spawn Threads
+    // Spawn Tasks
     ////////////////////////////////
+    info!("Spawning Tasks");
     spawner.spawn(can_task(can)).unwrap();
     spawner.spawn(display_task(display)).unwrap();
 }
