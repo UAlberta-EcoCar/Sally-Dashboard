@@ -3,7 +3,7 @@
 //! A CAN package is setup like this:
 //! ```rust
 //! #[allow(non_camel_case_types)]
-//! #[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+//! #[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 //! #[repr(C)]
 //! pub struct FDCAN_PACKAGE_NAME {
 //!     // Package Data
@@ -27,6 +27,9 @@
 //! `#[repr(C)]` Make Rust use the same memory layout for this struct as C to ensure compatility.
 //! For more information: [https://doc.rust-lang.org/nomicon/other-reprs.html](https://doc.rust-lang.org/nomicon/other-reprs.html)
 
+use bincode::error::DecodeError;
+use defmt::Format;
+
 /// Bit Definitions for FET State
 #[allow(non_camel_case_types)]
 #[repr(u8)]
@@ -40,6 +43,7 @@ pub enum FetBit {
 
 /// FET States
 #[allow(non_camel_case_types)]
+#[derive(Clone, Debug, Format)]
 #[repr(u8)]
 pub enum FetState {
     FET_STBY = FetBit::ALL_FET_OFF as u8,
@@ -60,9 +64,9 @@ pub enum RelayBit {
     DSCHRGE_RELAY = 0x04,
     MTR_RELAY = 0x08,
 }
-
 /// Relay Board State
 #[allow(non_camel_case_types)]
+#[derive(Clone, Debug, Format)]
 #[repr(u8)]
 pub enum RelayState {
     RELAY_STBY = RelayBit::ALL_RELAY_OFF as u8,
@@ -71,8 +75,27 @@ pub enum RelayState {
     RELAY_RUN =
         RelayBit::CAP_RELAY as u8 | RelayBit::DSCHRGE_RELAY as u8 | RelayBit::MTR_RELAY as u8,
 }
-/// Relay State ID
-pub const FDCAN_RELSTATE_ID: u16 = 0x018;
+impl FDCANPack for RelayState {
+    const FDCAN_BYTES: FDCANLength = FDCANLength::BYTES_1;
+    const FDCAN_ID: u32 = 0x018;
+}
+impl TryFrom<u8> for RelayState {
+    type Error = DecodeError;
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        const RELAY_STBY: u8 = RelayState::RELAY_STBY as u8;
+        const RELAY_STRTP: u8 = RelayState::RELAY_STRTP as u8;
+        const RELAY_CHRGE: u8 = RelayState::RELAY_CHRGE as u8;
+        const RELAY_RUN: u8 = RelayState::RELAY_RUN as u8;
+
+        match value {
+            RELAY_STBY => Ok(RelayState::RELAY_STBY),
+            RELAY_STRTP => Ok(RelayState::RELAY_STRTP),
+            RELAY_CHRGE => Ok(RelayState::RELAY_CHRGE),
+            RELAY_RUN => Ok(RelayState::RELAY_RUN),
+            _ => Err(DecodeError::Other("Invalid Relay State")),
+        }
+    }
+}
 
 /// The length of the package in bytes, can be up to 64 bytes.
 ///
@@ -103,7 +126,7 @@ pub enum FDCANLength {
 ///
 /// Sets the ID and number of bytes for a CAN package.
 /// Note that associated constants do not increase the size of a struct's memory.
-pub trait FDCANPack: bincode::enc::Encode + Clone {
+pub trait FDCANPack {
     /// The length of the package in bytes, can be up to 64 bytes.
     ///
     /// pub structs must be a certain size for FDCAN to transfer
@@ -139,7 +162,7 @@ pub const FDCAN_H2ALARM_ID: u16 = 0x001;
 pub const FDCAN_SYNCLED_ID: u16 = 0x00F;
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_FetPack_t {
     pub fet_config: u32,
@@ -155,7 +178,7 @@ impl FDCANPack for FDCAN_FetPack_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct ECOCAN_RelPackChrg_t {
     pub fc_coloumbs: i32,
@@ -167,7 +190,7 @@ impl FDCANPack for ECOCAN_RelPackChrg_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_RelPackNrg_t {
     pub fc_joules: i32,
@@ -179,7 +202,7 @@ impl FDCANPack for FDCAN_RelPackNrg_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_RelPackMtr_t {
     pub mtr_volt: u32,
@@ -191,7 +214,7 @@ impl FDCANPack for FDCAN_RelPackMtr_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_RelPackCap_t {
     pub cap_volt: u32,
@@ -203,7 +226,7 @@ impl FDCANPack for FDCAN_RelPackCap_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_RelPackFc_t {
     pub fc_volt: u32,
@@ -215,7 +238,7 @@ impl FDCANPack for FDCAN_RelPackFc_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_FccPack1_t {
     pub fc_temp: i32,
@@ -227,7 +250,7 @@ impl FDCANPack for FDCAN_FccPack1_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_FccPack2_t {
     pub fan_rpm1: u32,
@@ -239,7 +262,7 @@ impl FDCANPack for FDCAN_FccPack2_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_FccPack3_t {
     pub bme_temp: u32,
@@ -256,7 +279,7 @@ impl FDCANPack for FDCAN_FccPack3_t {
 // Mask: 0x7F0
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct ECOCAN_H2Pack1_t {
     pub h2_sense_1: u16,
@@ -270,7 +293,7 @@ impl FDCANPack for ECOCAN_H2Pack1_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct ECOCAN_H2Pack2_t {
     pub bme_temp: u16,
@@ -284,7 +307,7 @@ impl FDCANPack for ECOCAN_H2Pack2_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct ECOCAN_H2_ARM_ALARM_t {
     pub h2_alarm_armed: u8,
@@ -295,7 +318,7 @@ impl FDCANPack for ECOCAN_H2_ARM_ALARM_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_BOOSTPack1_t {
     pub in_curr: u32,
@@ -307,7 +330,7 @@ impl FDCANPack for FDCAN_BOOSTPack1_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_BOOSTPack2_t {
     pub out_curr: u32,
@@ -319,7 +342,7 @@ impl FDCANPack for FDCAN_BOOSTPack2_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_BOOSTPack3_t {
     pub efficiency: u32,
@@ -331,7 +354,7 @@ impl FDCANPack for FDCAN_BOOSTPack3_t {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Default)]
+#[derive(bincode::Encode, bincode::Decode, PartialEq, Clone, Debug, Format, Default)]
 #[repr(C)]
 pub struct FDCAN_BATTPack2_t {
     pub out_curr: u16,

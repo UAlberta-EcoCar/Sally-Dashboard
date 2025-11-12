@@ -29,7 +29,7 @@
 //!   and the next word will fill the next pixel (the adjacent on the right, or
 //!   the first of the next row if the row ended)
 //!
-//! # Optimizations
+//! # Optimization Strategies
 //! 1. The hardware is optimized for drawing rectangles. So prefer rendering rectangles over other shapes.
 //! 1. If a text/gui element's state does not change between render frames, do not redraw it.
 //! 1. Numbers that are rendered on each frame (e.g speed, temperature) should use the seven-segment display font.

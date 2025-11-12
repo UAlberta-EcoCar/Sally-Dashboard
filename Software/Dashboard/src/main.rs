@@ -1,5 +1,7 @@
 #![no_std]
 #![no_main]
+use bincode::error::DecodeError;
+use dashboard::can_mod::decode_can_frame;
 use dashboard::display_mod::display_task;
 use defmt::*;
 use display_interface_spi::SPIInterface;
@@ -153,7 +155,17 @@ async fn can_task(mut can: Can<'static>) {
                     rx_frame.header().len(),
                     rx_frame.data()[0..rx_frame.header().len() as usize],
                     delta,
-                )
+                );
+                if let Err(e) = decode_can_frame(&rx_frame).await {
+                    match e {
+                        DecodeError::Other(error) => {
+                            error!("CAN Decode Error: {}", error);
+                        }
+                        _ => {
+                            error!("CAN Decode Error")
+                        }
+                    }
+                }
             }
             Err(err) => error!("Error in frame: {}", err),
         }

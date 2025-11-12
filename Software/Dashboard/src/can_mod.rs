@@ -4,7 +4,7 @@
 //!
 //! This requires a lot of global mutable data. See this
 //! [article](https://blog.theembeddedrustacean.com/sharing-data-among-tasks-in-rust-embassy-synchronization-primitives#heading-the-list-of-primitives)
-//! on shared data in Embassy.
+//! on sharing data in Embassy.
 
 use bincode::{Decode, error::DecodeError};
 use defmt::*;
@@ -13,11 +13,12 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 use embedded_can::Id;
 
 use crate::eco_can::{
-    ECOCAN_H2Pack1_t, ECOCAN_H2Pack2_t, ECOCAN_RelPackChrg_t, FDCAN_BOOSTPack1_t,
-    FDCAN_BOOSTPack2_t, FDCAN_BOOSTPack3_t, FDCAN_FccPack1_t, FDCAN_FccPack2_t, FDCAN_FccPack3_t,
-    FDCAN_FetPack_t, FDCAN_RelPackCap_t, FDCAN_RelPackFc_t, FDCAN_RelPackMtr_t, FDCAN_RelPackNrg_t,
-    FDCANPack,
+    ECOCAN_H2Pack1_t, ECOCAN_H2Pack2_t, FDCAN_BOOSTPack1_t, FDCAN_BOOSTPack2_t, FDCAN_BOOSTPack3_t,
+    FDCAN_FccPack1_t, FDCAN_FccPack2_t, FDCAN_FccPack3_t, FDCAN_FetPack_t, FDCAN_RelPackCap_t,
+    FDCAN_RelPackFc_t, FDCAN_RelPackMtr_t, FDCANPack, RelayState,
 };
+
+pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_STBY);
 
 pub static FET_DATA: Mutex<ThreadModeRawMutex, FDCAN_FetPack_t> = Mutex::new(FDCAN_FetPack_t {
     fet_config: 0,
@@ -75,30 +76,21 @@ pub static BOOST_PACK3_DATA: Mutex<ThreadModeRawMutex, FDCAN_BOOSTPack3_t> =
         joules: 0,
     });
 
-pub static REL_PACK_CHRG_DATA: Mutex<ThreadModeRawMutex, ECOCAN_RelPackChrg_t> =
-    Mutex::new(ECOCAN_RelPackChrg_t {
-        fc_coloumbs: 0,
-        cap_coloumbs: 0,
+/// Fuel Cell Reading
+pub static REL_FC_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackFc_t> =
+    Mutex::new(FDCAN_RelPackFc_t {
+        fc_volt: 0,
+        fc_curr: 0,
     });
-pub static REL_PACK_NRG_DATA: Mutex<ThreadModeRawMutex, FDCAN_RelPackNrg_t> =
-    Mutex::new(FDCAN_RelPackNrg_t {
-        fc_joules: 0,
-        cap_joules: 0,
-    });
-pub static REL_PACK_MTR_DATA: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
-    Mutex::new(FDCAN_RelPackMtr_t {
-        mtr_volt: 0,
-        mtr_curr: 0,
-    });
-pub static REL_PACK_CAP_DATA: Mutex<ThreadModeRawMutex, FDCAN_RelPackCap_t> =
+pub static REL_CAP_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackCap_t> =
     Mutex::new(FDCAN_RelPackCap_t {
         cap_volt: 0,
         cap_curr: 0,
     });
-pub static REL_PACK_FC_DATA: Mutex<ThreadModeRawMutex, FDCAN_RelPackFc_t> =
-    Mutex::new(FDCAN_RelPackFc_t {
-        fc_volt: 0,
-        fc_curr: 0,
+pub static RELAY_MOTOR_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
+    Mutex::new(FDCAN_RelPackMtr_t {
+        mtr_volt: 0,
+        mtr_curr: 0,
     });
 
 /// Decodes a CAN frame into its corresponding CAN package
@@ -115,17 +107,21 @@ pub async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
 
     // Match ID to CAN package, and decode
     match id {
+        RelayState::FDCAN_ID => {
+            let mut relay_state = RELAY_STATE.lock().await;
+            *relay_state = RelayState::try_from(data[0])?;
+            Ok(())
+        }
+
         FDCAN_FccPack1_t::FDCAN_ID => decode_frame(&FCC_PACK1_DATA, data).await,
         FDCAN_FccPack2_t::FDCAN_ID => decode_frame(&FCC_PACK2_DATA, data).await,
         FDCAN_FccPack3_t::FDCAN_ID => decode_frame(&FCC_PACK3_DATA, data).await,
 
         FDCAN_FetPack_t::FDCAN_ID => decode_frame(&FET_DATA, data).await,
 
-        ECOCAN_RelPackChrg_t::FDCAN_ID => decode_frame(&REL_PACK_CHRG_DATA, data).await,
-        FDCAN_RelPackNrg_t::FDCAN_ID => decode_frame(&REL_PACK_NRG_DATA, data).await,
-        FDCAN_RelPackMtr_t::FDCAN_ID => decode_frame(&REL_PACK_MTR_DATA, data).await,
-        FDCAN_RelPackCap_t::FDCAN_ID => decode_frame(&REL_PACK_CAP_DATA, data).await,
-        FDCAN_RelPackFc_t::FDCAN_ID => decode_frame(&REL_PACK_FC_DATA, data).await,
+        FDCAN_RelPackMtr_t::FDCAN_ID => decode_frame(&RELAY_MOTOR_PACK, data).await,
+        FDCAN_RelPackCap_t::FDCAN_ID => decode_frame(&REL_CAP_PACK, data).await,
+        FDCAN_RelPackFc_t::FDCAN_ID => decode_frame(&REL_FC_PACK, data).await,
 
         ECOCAN_H2Pack1_t::FDCAN_ID => decode_frame(&H2_PACK1_DATA, data).await,
         ECOCAN_H2Pack2_t::FDCAN_ID => decode_frame(&H2_PACK2_DATA, data).await,
@@ -135,8 +131,8 @@ pub async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
         FDCAN_BOOSTPack3_t::FDCAN_ID => decode_frame(&BOOST_PACK3_DATA, data).await,
 
         _ => {
-            info!("ID {} doesn't match existing CAN packages", id);
-            Err(DecodeError::Other("ID doesn't match existing CAN packages"))
+            info!("Non-Relevant ID: {:016b}", id);
+            Ok(())
         }
     }
 }
