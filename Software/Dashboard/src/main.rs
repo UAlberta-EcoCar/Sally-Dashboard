@@ -95,6 +95,7 @@ async fn main(spawner: Spawner) {
     );
     // Enable channel 1
     led_in.ch1().enable();
+    info!("Configured LED Peripherals");
 
     ////////////////////////////////
     // Initialize SPI
