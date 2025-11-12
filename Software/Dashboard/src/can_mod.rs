@@ -8,8 +8,9 @@
 
 use bincode::{Decode, error::DecodeError};
 use defmt::*;
-use embassy_stm32::can::frame::FdFrame;
+use embassy_stm32::can::{Can, frame::FdFrame};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
+use embassy_time::Timer;
 use embedded_can::Id;
 
 use crate::eco_can::{
@@ -92,6 +93,41 @@ pub static RELAY_MOTOR_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
         mtr_volt: 0,
         mtr_curr: 0,
     });
+
+/// Responsible for handling the reception of CAN messages
+#[embassy_executor::task]
+pub async fn can_receive_task(mut can: Can<'static>) {
+    let mut last_read_ts = embassy_time::Instant::now();
+
+    // Use the FD API's even if we don't get FD packets.
+    loop {
+        match can.read_fd().await {
+            Ok(envelope) => {
+                let (ts, rx_frame) = (envelope.ts, envelope.frame);
+                let delta = (ts - last_read_ts).as_millis();
+                last_read_ts = ts;
+                info!(
+                    "Rx: {} {:02x} --- using FD API {} ms",
+                    rx_frame.header().len(),
+                    rx_frame.data()[0..rx_frame.header().len() as usize],
+                    delta,
+                );
+                if let Err(e) = decode_can_frame(&rx_frame).await {
+                    match e {
+                        DecodeError::Other(error) => {
+                            error!("CAN Decode Error: {}", error);
+                        }
+                        _ => {
+                            error!("CAN Decode Error")
+                        }
+                    }
+                }
+            }
+            Err(err) => error!("Error in frame: {}", err),
+        }
+        Timer::after_millis(1).await;
+    }
+}
 
 /// Decodes a CAN frame into its corresponding CAN package
 ///

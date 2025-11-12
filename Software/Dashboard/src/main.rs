@@ -1,18 +1,19 @@
 #![no_std]
 #![no_main]
-use bincode::error::DecodeError;
-use dashboard::can_mod::decode_can_frame;
+use dashboard::can_mod::can_receive_task;
 use dashboard::display_mod::display_task;
+use dashboard::led_mod::led_task;
 use defmt::*;
 use display_interface_spi::SPIInterface;
 use embassy_executor::Spawner;
-use embassy_stm32::can::Can;
-use embassy_stm32::gpio::{Level, Output, Speed};
+use embassy_stm32::gpio::{Level, Output, OutputType, Speed};
 use embassy_stm32::peripherals::*;
 use embassy_stm32::spi::{self, Spi};
 use embassy_stm32::time::Hertz;
+use embassy_stm32::timer::low_level::CountingMode;
+use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm};
 use embassy_stm32::{Config, bind_interrupts, can};
-use embassy_time::{Delay, Timer};
+use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use ili9488_rs::{Ili9488, Orientation, Rgb666Mode};
 use {defmt_rtt as _, panic_probe as _};
@@ -70,6 +71,30 @@ async fn main(spawner: Spawner) {
     can.set_fd_data_bitrate(8_000_000, false);
     let can = can.start(can::OperatingMode::NormalOperationMode);
     info!("Configured CAN");
+
+    ////////////////////////////////
+    // Initialize LED Lights
+    ////////////////////////////////
+    let led_in = PwmPin::new(peripherals.PA0, OutputType::PushPull);
+    let led_dma = peripherals.DMA2_CH1;
+
+    // PWM_FREQ = 1 / data_transfer_time = 1 / 1.25us = 800kHz
+    const PWM_FREQ: Hertz = Hertz::khz(800);
+
+    // Obtain a PWM handler, configure the Timer and Frequency
+    // The prescaler and ARR are automatically set
+    // Given this system frequency and pwm frequency the max duty cycle will be 50
+    let mut led_in = SimplePwm::new(
+        peripherals.TIM2,
+        Some(led_in),
+        None,
+        None,
+        None,
+        PWM_FREQ,
+        CountingMode::EdgeAlignedUp,
+    );
+    // Enable channel 1
+    led_in.ch1().enable();
 
     ////////////////////////////////
     // Initialize SPI
@@ -135,40 +160,7 @@ async fn main(spawner: Spawner) {
     // Spawn Tasks
     ////////////////////////////////
     info!("Spawning Tasks");
-    spawner.spawn(can_task(can)).unwrap();
+    spawner.spawn(can_receive_task(can)).unwrap();
+    spawner.spawn(led_task(led_in, led_dma)).unwrap();
     spawner.spawn(display_task(display)).unwrap();
-}
-
-#[embassy_executor::task]
-async fn can_task(mut can: Can<'static>) {
-    let mut last_read_ts = embassy_time::Instant::now();
-
-    // Use the FD API's even if we don't get FD packets.
-    loop {
-        match can.read_fd().await {
-            Ok(envelope) => {
-                let (ts, rx_frame) = (envelope.ts, envelope.frame);
-                let delta = (ts - last_read_ts).as_millis();
-                last_read_ts = ts;
-                info!(
-                    "Rx: {} {:02x} --- using FD API {} ms",
-                    rx_frame.header().len(),
-                    rx_frame.data()[0..rx_frame.header().len() as usize],
-                    delta,
-                );
-                if let Err(e) = decode_can_frame(&rx_frame).await {
-                    match e {
-                        DecodeError::Other(error) => {
-                            error!("CAN Decode Error: {}", error);
-                        }
-                        _ => {
-                            error!("CAN Decode Error")
-                        }
-                    }
-                }
-            }
-            Err(err) => error!("Error in frame: {}", err),
-        }
-        Timer::after_millis(1).await;
-    }
 }
