@@ -4,6 +4,7 @@
 //!
 //! WS2812B Datasheet: [https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf)
 
+use defmt::info;
 use embassy_stm32::Peri;
 use embassy_stm32::peripherals::{DMA2_CH1, TIM2};
 use embassy_stm32::timer::simple_pwm::SimplePwm;
@@ -19,17 +20,17 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
     const RESET_LENGTH: usize = 40;
     // Calculate the dma buffer's length at compile time
     const DMA_BUFFER_LEN: usize = calc_dma_buffer_length(8 * 3, LED_COUNT, RESET_LENGTH);
-    // t1h = T1H / data_transfer_time * max_duty_cycle = 0.8us / 1.25us * 50 = 32
-    let t1h: u16 = 32;
-    // t1h = T0H / data_transfer_time * max_duty_cycle = 0.4us / 1.25us * 50 = 16
-    let t0h: u16 = 16;
+    // t1h = T1H / data_transfer_time * max_duty_cycle = 0.8us / 1.25us * 200 =
+    let t1h: u16 = 128;
+    // t1h = T0H / data_transfer_time * max_duty_cycle = 0.4us / 1.25us * 200 =
+    let t0h: u16 = 64;
 
     let led_array: [RGB; LED_COUNT] = [
-        RGB::new(1, 0, 0),
-        RGB::new(0, 1, 0),
-        RGB::new(0, 0, 1),
-        RGB::new(0, 1, 1),
-        RGB::new(1, 1, 0),
+        RGB::new(3, 0, 0),
+        RGB::new(0, 3, 0),
+        RGB::new(0, 0, 3),
+        RGB::new(0, 3, 3),
+        RGB::new(3, 3, 0),
     ];
     let mut dma_buffer = LedDmaBuffer::<DMA_BUFFER_LEN>::new(t1h, t0h, LedDataComposition::GRB);
 
@@ -38,6 +39,7 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
         led_in
             .waveform::<embassy_stm32::timer::Ch1>(led_dma.reborrow(), dma_buffer.get_dma_buffer())
             .await;
+        info!("LEDs set");
         Timer::after_millis(200).await;
     }
 }

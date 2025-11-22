@@ -5,10 +5,19 @@
 //! This requires a lot of global mutable data. See this
 //! [article](https://blog.theembeddedrustacean.com/sharing-data-among-tasks-in-rust-embassy-synchronization-primitives#heading-the-list-of-primitives)
 //! on sharing data in Embassy.
+//!
+//! <div class="warning">
+//! Rust has non-lexical lifetimes, however anytime a mutex lock is acquired it should
+//! be dropped as soon as it is not needed. Mutex locks can last to the end of a function's
+//! lifetime and create deadlocks which are hard to debug.
+//! </div>
 
-use bincode::{Decode, error::DecodeError};
+use bincode::{
+    Decode, Encode,
+    error::{DecodeError, EncodeError},
+};
 use defmt::*;
-use embassy_stm32::can::{Can, frame::FdFrame};
+use embassy_stm32::can::{BufferedCanFd, frame::FdFrame};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 use embassy_time::Timer;
 use embedded_can::Id;
@@ -18,6 +27,11 @@ use crate::eco_can::{
     FDCAN_FccPack1_t, FDCAN_FccPack2_t, FDCAN_FccPack3_t, FDCAN_FetPack_t, FDCAN_RelPackCap_t,
     FDCAN_RelPackFc_t, FDCAN_RelPackMtr_t, FDCANPack, RelayState,
 };
+
+/// Buffer Size for the CAN TX buffer
+pub const TX_BUF_SIZE: usize = 1;
+/// Buffer Size for the CAN RX buffer
+pub const RX_BUF_SIZE: usize = 16;
 
 pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_STBY);
 
@@ -96,12 +110,30 @@ pub static RELAY_MOTOR_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
 
 /// Responsible for handling the reception of CAN messages
 #[embassy_executor::task]
-pub async fn can_receive_task(mut can: Can<'static>) {
+pub async fn can_receive_task(mut can: BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SIZE>) {
     let mut last_read_ts = embassy_time::Instant::now();
+    let mut tx_data = [0; 64];
 
     // Use the FD API's even if we don't get FD packets.
+    let mut i = 0u32;
     loop {
-        match can.read_fd().await {
+        let mut pack = RELAY_MOTOR_PACK.lock().await;
+        pack.mtr_volt = i;
+        drop(pack);
+        i += 1;
+
+        let pack = REL_CAP_PACK.lock().await;
+        info!("Cap pack cap_volt: {}", pack.cap_volt);
+        drop(pack);
+
+        if let Err(_) = encode_can_package(&RELAY_MOTOR_PACK, &mut tx_data).await {
+            error!("CAN Encode Error");
+        }
+        let frame = FdFrame::new_extended(FDCAN_RelPackCap_t::FDCAN_ID, &tx_data).unwrap();
+        can.write(frame).await;
+        Timer::after_millis(100).await;
+
+        match can.read().await {
             Ok(envelope) => {
                 let (ts, rx_frame) = (envelope.ts, envelope.frame);
                 let delta = (ts - last_read_ts).as_millis();
@@ -149,22 +181,22 @@ pub async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
             Ok(())
         }
 
-        FDCAN_FccPack1_t::FDCAN_ID => decode_frame(&FCC_PACK1_DATA, data).await,
-        FDCAN_FccPack2_t::FDCAN_ID => decode_frame(&FCC_PACK2_DATA, data).await,
-        FDCAN_FccPack3_t::FDCAN_ID => decode_frame(&FCC_PACK3_DATA, data).await,
+        FDCAN_FccPack1_t::FDCAN_ID => decode_can_data(&FCC_PACK1_DATA, data).await,
+        FDCAN_FccPack2_t::FDCAN_ID => decode_can_data(&FCC_PACK2_DATA, data).await,
+        FDCAN_FccPack3_t::FDCAN_ID => decode_can_data(&FCC_PACK3_DATA, data).await,
 
-        FDCAN_FetPack_t::FDCAN_ID => decode_frame(&FET_DATA, data).await,
+        FDCAN_FetPack_t::FDCAN_ID => decode_can_data(&FET_DATA, data).await,
 
-        FDCAN_RelPackMtr_t::FDCAN_ID => decode_frame(&RELAY_MOTOR_PACK, data).await,
-        FDCAN_RelPackCap_t::FDCAN_ID => decode_frame(&REL_CAP_PACK, data).await,
-        FDCAN_RelPackFc_t::FDCAN_ID => decode_frame(&REL_FC_PACK, data).await,
+        FDCAN_RelPackMtr_t::FDCAN_ID => decode_can_data(&RELAY_MOTOR_PACK, data).await,
+        FDCAN_RelPackCap_t::FDCAN_ID => decode_can_data(&REL_CAP_PACK, data).await,
+        FDCAN_RelPackFc_t::FDCAN_ID => decode_can_data(&REL_FC_PACK, data).await,
 
-        ECOCAN_H2Pack1_t::FDCAN_ID => decode_frame(&H2_PACK1_DATA, data).await,
-        ECOCAN_H2Pack2_t::FDCAN_ID => decode_frame(&H2_PACK2_DATA, data).await,
+        ECOCAN_H2Pack1_t::FDCAN_ID => decode_can_data(&H2_PACK1_DATA, data).await,
+        ECOCAN_H2Pack2_t::FDCAN_ID => decode_can_data(&H2_PACK2_DATA, data).await,
 
-        FDCAN_BOOSTPack1_t::FDCAN_ID => decode_frame(&BOOST_PACK1_DATA, data).await,
-        FDCAN_BOOSTPack2_t::FDCAN_ID => decode_frame(&BOOST_PACK2_DATA, data).await,
-        FDCAN_BOOSTPack3_t::FDCAN_ID => decode_frame(&BOOST_PACK3_DATA, data).await,
+        FDCAN_BOOSTPack1_t::FDCAN_ID => decode_can_data(&BOOST_PACK1_DATA, data).await,
+        FDCAN_BOOSTPack2_t::FDCAN_ID => decode_can_data(&BOOST_PACK2_DATA, data).await,
+        FDCAN_BOOSTPack3_t::FDCAN_ID => decode_can_data(&BOOST_PACK3_DATA, data).await,
 
         _ => {
             info!("Non-Relevant ID: {:016b}", id);
@@ -173,7 +205,8 @@ pub async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
     }
 }
 
-async fn decode_frame<T: Decode<()>>(
+/// Decodes a byte array into a CAN package
+async fn decode_can_data<T: Decode<()>>(
     package: &Mutex<ThreadModeRawMutex, T>,
     data: &[u8],
 ) -> Result<(), DecodeError> {
@@ -184,4 +217,16 @@ async fn decode_frame<T: Decode<()>>(
     let mut p = package.lock().await;
     *p = bincode::decode_from_slice(&data, bincode_config)?.0;
     Ok(())
+}
+
+/// Encodes a CAN package into a byte array
+async fn encode_can_package<T: Encode + Clone>(
+    package: &Mutex<ThreadModeRawMutex, T>,
+    mut encoded_data: &mut [u8],
+) -> Result<usize, EncodeError> {
+    let bincode_config = bincode::config::standard()
+        .with_big_endian()
+        .with_fixed_int_encoding();
+    let p = package.lock().await;
+    bincode::encode_into_slice(p.clone(), &mut encoded_data, bincode_config)
 }

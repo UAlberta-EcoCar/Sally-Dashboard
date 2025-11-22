@@ -36,9 +36,11 @@
 //!  The reason for this is because the seven-segment font is rendered using multiple horizontal/veritcal lines
 //! (rectangles), [source](https://github.com/embedded-graphics/eg-seven-segment/blob/master/src/segment.rs#L39).
 
+use defmt::info;
 use display_interface_spi::SPIInterface;
 use embassy_stm32::gpio::Output;
 use embassy_stm32::spi::Spi;
+use embassy_time::{Instant, Timer};
 use embedded_graphics::{
     Drawable,
     geometry::Dimensions,
@@ -50,7 +52,7 @@ use embedded_graphics::{
 use embedded_hal_bus::spi::ExclusiveDevice;
 use ili9488_rs::{Ili9488, Rgb666Mode};
 
-/// Typedef for ILI9488 driver
+/// Type Alias for ILI9488 driver
 type Ili9488Display = Ili9488<
     SPIInterface<
         ExclusiveDevice<
@@ -66,19 +68,26 @@ type Ili9488Display = Ili9488<
 
 /// Responsible for rendering data to the display
 #[embassy_executor::task]
-pub async fn display_task(mut display: Ili9488Display) {
+pub async fn display_task(mut display: Ili9488Display, mut lcd_bright: Output<'static>) {
     let text_style = MonoTextStyle::new(&FONT_10X20, Rgb666::BLACK);
+    lcd_bright.set_high();
 
-    display
-        .clear_screen_fast(ili9488_rs::Rgb111::WHITE)
+    info!("Time taken to do a full screen clear:");
+    let start = Instant::now().as_millis();
+    display.clear_screen(Rgb666::WHITE).unwrap();
+    let end = Instant::now().as_millis();
+    info!("(rgb 6-6-6) fast version: {} ms", end - start);
+
+    loop {
+        Text::with_alignment(
+            "ILI9488 Inilialized...",
+            display.bounding_box().center() + Point::new(20, 20),
+            text_style,
+            Alignment::Center,
+        )
+        .draw(&mut display)
         .unwrap();
-
-    Text::with_alignment(
-        "ILI9488 Inilialized...",
-        display.bounding_box().center() + Point::new(20, 20),
-        text_style,
-        Alignment::Center,
-    )
-    .draw(&mut display)
-    .unwrap();
+        info!("Rendered frame");
+        Timer::after_millis(2000).await;
+    }
 }

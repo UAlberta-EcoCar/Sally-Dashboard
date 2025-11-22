@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-use dashboard::can_mod::can_receive_task;
+use dashboard::can_mod::{RX_BUF_SIZE, TX_BUF_SIZE, can_receive_task};
 use dashboard::display_mod::display_task;
 use dashboard::led_mod::led_task;
 use defmt::*;
@@ -16,6 +16,7 @@ use embassy_stm32::{Config, bind_interrupts, can};
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use ili9488_rs::{Ili9488, Orientation, Rgb666Mode};
+use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
@@ -56,6 +57,8 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize CAN
     ////////////////////////////////
+    static TX_BUF: StaticCell<can::TxFdBuf<TX_BUF_SIZE>> = StaticCell::new();
+    static RX_BUF: StaticCell<can::RxFdBuf<RX_BUF_SIZE>> = StaticCell::new();
     let can_rx = peripherals.PB5;
     let can_tx = peripherals.PB6;
     let mut can = can::CanConfigurator::new(peripherals.FDCAN2, can_rx, can_tx, Irqs);
@@ -69,7 +72,15 @@ async fn main(spawner: Spawner) {
 
     // FD CAN Clock Mux: 8MHz
     can.set_fd_data_bitrate(8_000_000, false);
-    let can = can.start(can::OperatingMode::NormalOperationMode);
+    // let can = can.start(can::OperatingMode::NormalOperationMode);
+    // Use internal loop back mode for debugging
+    let can = can.start(can::OperatingMode::InternalLoopbackMode);
+
+    let can = can.buffered_fd(
+        TX_BUF.init(can::TxFdBuf::new()),
+        RX_BUF.init(can::RxFdBuf::new()),
+    );
+
     info!("Configured CAN");
 
     ////////////////////////////////
@@ -140,7 +151,7 @@ async fn main(spawner: Spawner) {
 
     let lcd_cs = Output::new(lcd_cs, Level::High, Speed::VeryHigh);
     let lcd_reset = Output::new(lcd_reset, Level::Low, Speed::VeryHigh);
-    let _ = Output::new(lcd_bright, Level::High, Speed::VeryHigh);
+    let lcd_bright = Output::new(lcd_bright, Level::High, Speed::Medium);
     let lcd_dc = Output::new(lcd_dc, Level::Low, Speed::VeryHigh);
     let mut delay = Delay;
 
@@ -157,11 +168,11 @@ async fn main(spawner: Spawner) {
     .unwrap();
     info!("Configured ILI9488 Display");
 
-    ////////////////////////////////
+    ////////////////////////////////3
     // Spawn Tasks
     ////////////////////////////////
     info!("Spawning Tasks");
     spawner.spawn(can_receive_task(can)).unwrap();
     spawner.spawn(led_task(led_in, led_dma)).unwrap();
-    spawner.spawn(display_task(display)).unwrap();
+    spawner.spawn(display_task(display, lcd_bright)).unwrap();
 }
