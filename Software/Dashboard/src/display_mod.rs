@@ -79,6 +79,7 @@ pub async fn display_task(mut display: Ili9488Display, mut lcd_bright: Output<'s
     info!("(rgb 6-6-6) fast version: {} ms", end - start);
 
     loop {
+        // display.clear_screen(Rgb666::WHITE).unwrap();
         Text::with_alignment(
             "ILI9488 Inilialized...",
             display.bounding_box().center() + Point::new(20, 20),
@@ -87,7 +88,7 @@ pub async fn display_task(mut display: Ili9488Display, mut lcd_bright: Output<'s
         )
         .draw(&mut display)
         .unwrap();
-        info!("Rendered frame");
-        Timer::after_millis(2000).await;
+        // info!("Display Health check");
+        Timer::after_millis(1000).await;
     }
 }

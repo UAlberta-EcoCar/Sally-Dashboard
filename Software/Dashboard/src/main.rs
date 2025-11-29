@@ -1,18 +1,19 @@
 #![no_std]
 #![no_main]
+use dashboard::btn_mod::{btn1_task, btn2_task};
 use dashboard::can_mod::{RX_BUF_SIZE, TX_BUF_SIZE, can_receive_task};
 use dashboard::display_mod::display_task;
 use dashboard::led_mod::led_task;
 use defmt::*;
 use display_interface_spi::SPIInterface;
 use embassy_executor::Spawner;
-use embassy_stm32::gpio::{Level, Output, OutputType, Speed};
-use embassy_stm32::peripherals::*;
+use embassy_stm32::exti::ExtiInput;
+use embassy_stm32::gpio::{Level, Output, OutputType, Pull, Speed};
 use embassy_stm32::spi::{self, Spi};
 use embassy_stm32::time::Hertz;
 use embassy_stm32::timer::low_level::CountingMode;
 use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm};
-use embassy_stm32::{Config, bind_interrupts, can};
+use embassy_stm32::{Config, bind_interrupts, can, peripherals::*};
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use ili9488_rs::{Ili9488, Orientation, Rgb666Mode};
@@ -72,6 +73,7 @@ async fn main(spawner: Spawner) {
 
     // FD CAN Clock Mux: 8MHz
     can.set_fd_data_bitrate(8_000_000, false);
+
     // let can = can.start(can::OperatingMode::NormalOperationMode);
     // Use internal loop back mode for debugging
     let can = can.start(can::OperatingMode::InternalLoopbackMode);
@@ -82,6 +84,12 @@ async fn main(spawner: Spawner) {
     );
 
     info!("Configured CAN");
+
+    ////////////////////////////////
+    // Initialize External Interrupt Buttons
+    ////////////////////////////////
+    let btn1 = ExtiInput::new(peripherals.PB3, peripherals.EXTI3, Pull::Up);
+    let btn2 = ExtiInput::new(peripherals.PB4, peripherals.EXTI4, Pull::Up);
 
     ////////////////////////////////
     // Initialize LED Lights
@@ -175,4 +183,6 @@ async fn main(spawner: Spawner) {
     spawner.spawn(can_receive_task(can)).unwrap();
     spawner.spawn(led_task(led_in, led_dma)).unwrap();
     spawner.spawn(display_task(display, lcd_bright)).unwrap();
+    spawner.spawn(btn1_task(btn1)).unwrap();
+    spawner.spawn(btn2_task(btn2)).unwrap();
 }

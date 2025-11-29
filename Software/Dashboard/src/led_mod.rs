@@ -39,7 +39,7 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
         led_in
             .waveform::<embassy_stm32::timer::Ch1>(led_dma.reborrow(), dma_buffer.get_dma_buffer())
             .await;
-        info!("LEDs set");
-        Timer::after_millis(200).await;
+        // info!("LED Health check");
+        Timer::after_millis(1000).await;
     }
 }

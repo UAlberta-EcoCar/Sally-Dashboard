@@ -57,5 +57,5 @@ lto = "fat"
 # Only uncomment one of these
 # See https://docs.rust-embedded.org/book/unsorted/speed-vs-size.html
 # for choosing opt-level
-# opt-level = 's' # optimize for size
-opt-level = 3 # optimize for speed
+opt-level = 's' # optimize for size
+# opt-level = 3 # optimize for speed
