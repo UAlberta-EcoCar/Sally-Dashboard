@@ -7,3 +7,4 @@ pub mod can_mod;
 pub mod display_mod;
 pub mod eco_can;
 pub mod led_mod;
+pub mod mode;

@@ -15,10 +15,14 @@
 
 use bincode::{
     Decode, Encode,
+    config::{self, Configuration},
     error::{DecodeError, EncodeError},
 };
 use defmt::*;
-use embassy_stm32::can::{BufferedCanFd, frame::FdFrame};
+use embassy_stm32::{
+    can::{BufferedCanFd, Can, Frame, frame::FdFrame},
+    gpio::Output,
+};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 use embassy_time::Timer;
 use embedded_can::Id;
@@ -34,7 +38,12 @@ pub const TX_BUF_SIZE: usize = 1;
 /// Buffer Size for the CAN RX buffer
 pub const RX_BUF_SIZE: usize = 20;
 
-pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_STBY);
+const BINCODE_CONFIG: Configuration<bincode::config::BigEndian, bincode::config::Fixint> =
+    bincode::config::standard()
+        .with_big_endian()
+        .with_fixed_int_encoding();
+
+pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_STRTP);
 
 pub static FET_DATA: Mutex<ThreadModeRawMutex, FDCAN_FetPack_t> = Mutex::new(FDCAN_FetPack_t {
     fet_config: 0,
@@ -111,43 +120,53 @@ pub static RELAY_MOTOR_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
 
 /// Responsible for handling the reception of CAN messages
 #[embassy_executor::task]
-pub async fn can_receive_task(mut can: BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SIZE>) {
-    let mut tx_data = [0; 64];
-
+pub async fn can_receive_task(mut can: Can<'static>, _can_stby: Output<'static>) {
+    // pub async fn can_receive_task(mut can: BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SIZE>) {
     // Use the FD API's even if we don't get FD packets.
     let debug = true;
     if debug {
-        for _ in 0..40 {
+        let mut tx_data = [0; 64];
+        loop {
+            // for _ in 0..40 {
             let mut pack = RELAY_MOTOR_PACK.lock().await;
-            pack.mtr_volt += 1;
+            pack.mtr_curr += 1;
+            if pack.mtr_curr > 100 {
+                pack.mtr_curr = 0;
+            }
             drop(pack);
 
             match encode_can_package(&RELAY_MOTOR_PACK, &mut tx_data).await {
                 Ok(tx_len) => {
                     let frame =
-                        FdFrame::new_extended(FDCAN_RelPackCap_t::FDCAN_ID, &tx_data[..tx_len])
+                        Frame::new_extended(FDCAN_RelPackCap_t::FDCAN_ID, &tx_data[..tx_len])
                             .unwrap();
-                    can.write(frame).await;
+                    info!("Sending CAN frame...");
+                    let f = can.write(&frame).await;
+                    // info!("{:?}", f);
                 }
                 Err(_) => {
                     error!("CAN Encode Error");
                 }
             }
+            info!("Sent CAN Frame");
+            Timer::after_millis(1000).await;
         }
     }
-    loop {
-        // await one frame (blocks until at least one frame arrives)
-        match can.read().await {
-            Ok(envelope) => {
-                // Process the first can frame received
-                process_rx_can_frame(&envelope.frame).await;
-                // then drain the receive buffer
-                drain_rx_can_buffer(&can).await;
-            }
-            Err(err) => error!("CAN Frame Error: {}", err),
-        }
-        Timer::after_millis(1).await;
-    }
+    // loop {
+    //     // await one frame (blocks until at least one frame arrives)
+    //     debug!("Waiting to receive CAN frame...");
+    //     match can.read_fd().await {
+    //         Ok(envelope) => {
+    //             // Process the first can frame received
+    //             process_rx_can_frame(&envelope.frame).await;
+    //             // then drain the receive buffer
+    //             // drain_rx_can_buffer(&can).await;
+    //         }
+    //         Err(err) => error!("CAN Frame Error: {}", err),
+    //     }
+    //     debug!("CAN Healh Check");
+    //     Timer::after_millis(1000).await;
+    // }
 }
 
 /// Process the remaining CAN frames in the RX buffer
@@ -158,7 +177,7 @@ async fn drain_rx_can_buffer(can: &BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SI
         if let Ok(frame) = reader.try_receive() {
             match frame {
                 Ok(envelope) => {
-                    process_rx_can_frame(&envelope.frame).await;
+                    // process_rx_can_frame(&envelope.frame).await;
                 }
                 Err(err) => error!("CAN Frame Error: {}", err),
             }
@@ -173,13 +192,12 @@ async fn process_rx_can_frame(rx_frame: &FdFrame) {
     if let Err(_) = decode_can_frame(&rx_frame).await {
         error!("CAN Decode Error");
     }
-    // Put debug messages after decoding a CAN frame here
 }
 
 /// Decodes a CAN frame into its corresponding CAN package
 ///
 /// Returns an error if the frame cannot be decoded.
-pub async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
+async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
     // Get ID
     let id = match frame.header().id() {
         Id::Standard(id) => u32::from(id.as_raw()),
@@ -193,6 +211,7 @@ pub async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
         RelayState::FDCAN_ID => {
             let mut relay_state = RELAY_STATE.lock().await;
             *relay_state = RelayState::try_from(rx_data[0])?;
+            debug!("Updated Relay State: {:?}", *relay_state);
             Ok(())
         }
 
@@ -214,23 +233,22 @@ pub async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
         FDCAN_BOOSTPack3_t::FDCAN_ID => decode_can_data(&BOOST_PACK3_DATA, rx_data).await,
 
         _ => {
-            info!("Non-Relevant ID: {:016b}", id);
+            debug!("Non-Relevant ID: {:016b}", id);
             Ok(())
         }
     }
 }
 
 /// Decodes a byte array into a CAN package
-async fn decode_can_data<T: Decode<()>>(
+async fn decode_can_data<T: Decode<()> + Format>(
     package: &Mutex<ThreadModeRawMutex, T>,
     rx_data: &[u8],
 ) -> Result<(), DecodeError> {
-    let bincode_config = bincode::config::standard()
-        .with_big_endian()
-        .with_fixed_int_encoding();
     // Decode received package bytes into the desired package struct and update can package
     let mut p = package.lock().await;
-    *p = bincode::decode_from_slice(&rx_data, bincode_config)?.0;
+    *p = bincode::decode_from_slice(&rx_data, BINCODE_CONFIG)?.0;
+    trace!("updated can pack: {:?}", *p);
+
     Ok(())
 }
 
@@ -239,9 +257,6 @@ async fn encode_can_package<T: Encode + Clone>(
     package: &Mutex<ThreadModeRawMutex, T>,
     mut tx_data: &mut [u8],
 ) -> Result<usize, EncodeError> {
-    let bincode_config = bincode::config::standard()
-        .with_big_endian()
-        .with_fixed_int_encoding();
     let p = package.lock().await;
-    bincode::encode_into_slice(p.clone(), &mut tx_data, bincode_config)
+    bincode::encode_into_slice(p.clone(), &mut tx_data, BINCODE_CONFIG)
 }

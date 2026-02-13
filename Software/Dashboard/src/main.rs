@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-use dashboard::btn_mod::{btn1_task, btn2_task};
 use dashboard::can_mod::{RX_BUF_SIZE, TX_BUF_SIZE, can_receive_task};
 use dashboard::display_mod::display_task;
 use dashboard::led_mod::led_task;
@@ -44,13 +43,13 @@ async fn main(spawner: Spawner) {
         });
         config.rcc.pll = Some(Pll {
             source: PllSource::HSE,
-            prediv: PllPreDiv::DIV1,
-            mul: PllMul::MUL40,
-            divp: Some(PllPDiv::DIV2), // 160 MHz PLLP
-            divq: Some(PllQDiv::DIV4), // 80 MHz PLLQ
-            divr: Some(PllRDiv::DIV2), // Main system clock at 160 MHz
+            prediv: PllPreDiv::DIV2,
+            mul: PllMul::MUL85,
+            divp: Some(PllPDiv::DIV2), // 170 MHz PLLP
+            divq: Some(PllQDiv::DIV2), // 170 MHz PLLQ
+            divr: Some(PllRDiv::DIV2), // Main system clock at 170 MHz
         });
-        config.rcc.mux.fdcansel = mux::Fdcansel::PLL1_Q;
+        config.rcc.mux.fdcansel = mux::Fdcansel::HSE;
         config.rcc.sys = Sysclk::PLL1_R;
     }
     let peripherals = embassy_stm32::init(config);
@@ -58,38 +57,38 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize CAN
     ////////////////////////////////
-    static TX_BUF: StaticCell<can::TxFdBuf<TX_BUF_SIZE>> = StaticCell::new();
-    static RX_BUF: StaticCell<can::RxFdBuf<RX_BUF_SIZE>> = StaticCell::new();
+    static _TX_BUF: StaticCell<can::TxFdBuf<TX_BUF_SIZE>> = StaticCell::new();
+    static _RX_BUF: StaticCell<can::RxFdBuf<RX_BUF_SIZE>> = StaticCell::new();
     let can_rx = peripherals.PB5;
     let can_tx = peripherals.PB6;
+    let can_stby = peripherals.PB7;
     let mut can = can::CanConfigurator::new(peripherals.FDCAN2, can_rx, can_tx, Irqs);
+    let can_stby = Output::new(can_stby, Level::Low, Speed::Low);
 
     can.properties().set_extended_filter(
         can::filter::ExtendedFilterSlot::_0,
         can::filter::ExtendedFilter::accept_all_into_fifo1(),
     );
-    // Nominal Baud Rate: 1MHz
+    // Nominal Baud Rate: 1M bits/s
     can.set_bitrate(1_000_000);
+    // can.set_bitrate(1_000_000);
 
-    // FD CAN Clock Mux: 8MHz
-    can.set_fd_data_bitrate(8_000_000, false);
+    let can = can.start(can::OperatingMode::ExternalLoopbackMode);
 
-    // let can = can.start(can::OperatingMode::NormalOperationMode);
     // Use internal loop back mode for debugging
-    let can = can.start(can::OperatingMode::InternalLoopbackMode);
+    // let can = can.start(can::OperatingMode::InternalLoopbackMode);
 
-    let can = can.buffered_fd(
-        TX_BUF.init(can::TxFdBuf::new()),
-        RX_BUF.init(can::RxFdBuf::new()),
-    );
-
+    // let can = can.buffered_fd(
+    //     TX_BUF.init(can::TxFdBuf::new()),
+    //     RX_BUF.init(can::RxFdBuf::new()),
+    // );
     info!("Configured CAN");
 
     ////////////////////////////////
     // Initialize External Interrupt Buttons
     ////////////////////////////////
-    let btn1 = ExtiInput::new(peripherals.PB3, peripherals.EXTI3, Pull::Up);
-    let btn2 = ExtiInput::new(peripherals.PB4, peripherals.EXTI4, Pull::Up);
+    let _btn1 = ExtiInput::new(peripherals.PB3, peripherals.EXTI3, Pull::Up);
+    let _btn2 = ExtiInput::new(peripherals.PB4, peripherals.EXTI4, Pull::Up);
 
     ////////////////////////////////
     // Initialize LED Lights
@@ -180,9 +179,9 @@ async fn main(spawner: Spawner) {
     // Spawn Tasks
     ////////////////////////////////
     info!("Spawning Tasks");
-    spawner.spawn(can_receive_task(can)).unwrap();
+    spawner.spawn(can_receive_task(can, can_stby)).unwrap();
     spawner.spawn(led_task(led_in, led_dma)).unwrap();
     spawner.spawn(display_task(display, lcd_bright)).unwrap();
-    spawner.spawn(btn1_task(btn1)).unwrap();
-    spawner.spawn(btn2_task(btn2)).unwrap();
+    // spawner.spawn(btn1_task(btn1)).unwrap();
+    // spawner.spawn(btn2_task(btn2)).unwrap();
 }

@@ -36,7 +36,7 @@
 //!  The reason for this is because the seven-segment font is rendered using multiple horizontal/veritcal lines
 //! (rectangles), [source](https://github.com/embedded-graphics/eg-seven-segment/blob/master/src/segment.rs#L39).
 
-use defmt::info;
+use defmt::{debug, info};
 use display_interface_spi::SPIInterface;
 use embassy_stm32::gpio::Output;
 use embassy_stm32::spi::Spi;
@@ -52,8 +52,11 @@ use embedded_graphics::{
 use embedded_hal_bus::spi::ExclusiveDevice;
 use ili9488_rs::{Ili9488, Rgb666Mode};
 
-/// Type Alias for ILI9488 driver
-type Ili9488Display = Ili9488<
+use crate::can_mod::RELAY_STATE;
+use crate::eco_can::RelayState;
+
+/// Type Alias for ILI9488 driver, the current display driver
+pub type DisplayDevice = Ili9488<
     SPIInterface<
         ExclusiveDevice<
             Spi<'static, embassy_stm32::mode::Async>,
@@ -66,29 +69,47 @@ type Ili9488Display = Ili9488<
     Rgb666Mode,
 >;
 
+pub const DISPLAY_WIDTH: u32 = 480;
+pub const DISPLAY_HEIGHT: u32 = 320;
+pub const CENTER_POINT: Point = Point::new(DISPLAY_WIDTH as i32 / 2, DISPLAY_HEIGHT as i32 / 2);
+
 /// Responsible for rendering data to the display
 #[embassy_executor::task]
-pub async fn display_task(mut display: Ili9488Display, mut lcd_bright: Output<'static>) {
-    let text_style = MonoTextStyle::new(&FONT_10X20, Rgb666::BLACK);
+pub async fn display_task(mut display: DisplayDevice, mut lcd_bright: Output<'static>) {
     lcd_bright.set_high();
 
     info!("Time taken to do a full screen clear:");
     let start = Instant::now().as_millis();
     display.clear_screen(Rgb666::WHITE).unwrap();
     let end = Instant::now().as_millis();
-    info!("(rgb 6-6-6) fast version: {} ms", end - start);
+    info!("Full Screen Clear: {} ms", end - start);
 
     loop {
         // display.clear_screen(Rgb666::WHITE).unwrap();
-        Text::with_alignment(
-            "ILI9488 Inilialized...",
-            display.bounding_box().center() + Point::new(20, 20),
-            text_style,
-            Alignment::Center,
-        )
-        .draw(&mut display)
-        .unwrap();
-        // info!("Display Health check");
-        Timer::after_millis(1000).await;
+        let relay_state = RELAY_STATE.lock().await;
+        match *relay_state {
+            RelayState::RELAY_STRTP => display_startup_mode(&mut display).await,
+            RelayState::RELAY_CHRGE => display_charging_mode(&mut display).await,
+            RelayState::RELAY_STBY => display_standby_mode(&mut display).await,
+            RelayState::RELAY_RUN => display_run_mode(&mut display).await,
+        }
+        debug!("Display Health check");
+        Timer::after_millis(2000).await;
     }
 }
+
+async fn display_startup_mode(display: &mut DisplayDevice) {
+    let text_style = MonoTextStyle::new(&FONT_10X20, Rgb666::BLACK);
+    display.clear_screen(Rgb666::WHITE).unwrap();
+    Text::with_alignment(
+        "ILI9488 Inilialized...",
+        display.bounding_box().center() + Point::new(20, 20),
+        text_style,
+        Alignment::Center,
+    )
+    .draw(display)
+    .unwrap();
+}
+async fn display_charging_mode(_display: &mut DisplayDevice) {}
+async fn display_standby_mode(_display: &mut DisplayDevice) {}
+async fn display_run_mode(_display: &mut DisplayDevice) {}
