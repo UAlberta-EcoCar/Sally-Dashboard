@@ -5,7 +5,7 @@
 //! WS2812B Datasheet: [https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf)
 
 // use defmt::info;
-use defmt::debug;
+use defmt::trace;
 use embassy_stm32::Peri;
 use embassy_stm32::peripherals::{DMA2_CH1, TIM2};
 use embassy_stm32::timer::simple_pwm::SimplePwm;
@@ -20,6 +20,7 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
     // RESET_LENGTH = reset_period / data_transfer_time = 50us / 1.25us = 40
     const RESET_LENGTH: usize = 40;
     // Calculate the dma buffer's length at compile time
+    // Uses RGB888 formatting
     const DMA_BUFFER_LEN: usize = calc_dma_buffer_length(8 * 3, LED_COUNT, RESET_LENGTH);
     // t1h = T1H / data_transfer_time * max_duty_cycle = 0.8us / 1.25us * 200 =
     let t1h: u16 = 128;
@@ -40,7 +41,7 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
         led_in
             .waveform::<embassy_stm32::timer::Ch1>(led_dma.reborrow(), dma_buffer.get_dma_buffer())
             .await;
-        debug!("LED Health check");
+        trace!("LED Health check");
         Timer::after_millis(2000).await;
     }
 }

@@ -120,7 +120,7 @@ pub static RELAY_MOTOR_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
 
 /// Responsible for handling the reception of CAN messages
 #[embassy_executor::task]
-pub async fn can_receive_task(mut can: Can<'static>, _can_stby: Output<'static>) {
+pub async fn can_receive_task(mut can: Can<'static>) {
     // pub async fn can_receive_task(mut can: BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SIZE>) {
     // Use the FD API's even if we don't get FD packets.
     let debug = true;

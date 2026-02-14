@@ -42,7 +42,7 @@ fn render_linear_gradient(
     }
 }
 
-pub fn startup_gui(display: &mut DisplayDevice) {
+pub fn render_startup_gui(display: &mut DisplayDevice) {
     let colors = [
         Rgb666::RED,
         Rgb666::CSS_ORANGE,

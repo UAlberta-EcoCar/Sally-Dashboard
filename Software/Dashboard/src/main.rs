@@ -62,8 +62,11 @@ async fn main(spawner: Spawner) {
     let can_rx = peripherals.PB5;
     let can_tx = peripherals.PB6;
     let can_stby = peripherals.PB7;
+
     let mut can = can::CanConfigurator::new(peripherals.FDCAN2, can_rx, can_tx, Irqs);
-    let can_stby = Output::new(can_stby, Level::Low, Speed::Low);
+    let _can_stby = Output::new(can_stby, Level::Low, Speed::Low);
+    // Because the destructor resets the gpio pin's state, use mem::forget to drop the variable
+    core::mem::forget(_can_stby);
 
     can.properties().set_extended_filter(
         can::filter::ExtendedFilterSlot::_0,
@@ -158,7 +161,10 @@ async fn main(spawner: Spawner) {
 
     let lcd_cs = Output::new(lcd_cs, Level::High, Speed::VeryHigh);
     let lcd_reset = Output::new(lcd_reset, Level::Low, Speed::VeryHigh);
-    let lcd_bright = Output::new(lcd_bright, Level::High, Speed::Medium);
+    // Turn the LCD's backlight on indefinetly
+    // Because the destructor resets the gpio pin's state, use mem::forget to drop the variable
+    let _lcd_bright = Output::new(lcd_bright, Level::High, Speed::Medium);
+    core::mem::forget(_lcd_bright);
     let lcd_dc = Output::new(lcd_dc, Level::Low, Speed::VeryHigh);
     let mut delay = Delay;
 
@@ -179,9 +185,9 @@ async fn main(spawner: Spawner) {
     // Spawn Tasks
     ////////////////////////////////
     info!("Spawning Tasks");
-    spawner.spawn(can_receive_task(can, can_stby)).unwrap();
+    spawner.spawn(can_receive_task(can)).unwrap();
     spawner.spawn(led_task(led_in, led_dma)).unwrap();
-    spawner.spawn(display_task(display, lcd_bright)).unwrap();
+    spawner.spawn(display_task(display)).unwrap();
     // spawner.spawn(btn1_task(btn1)).unwrap();
     // spawner.spawn(btn2_task(btn2)).unwrap();
 }

@@ -1,79 +1,3 @@
-/* Canbus values to render
-pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_STRTP);
-
-pub static FET_DATA: Mutex<ThreadModeRawMutex, FDCAN_FetPack_t> = Mutex::new(FDCAN_FetPack_t {
-    fet_config: 0,
-    input_volt: 0,
-    cap_volt: 0,
-    cap_curr: 0,
-    res_curr: 0,
-    out_curr: 0,
-});
-
-pub static FCC_PACK1_DATA: Mutex<ThreadModeRawMutex, FDCAN_FccPack1_t> =
-    Mutex::new(FDCAN_FccPack1_t {
-        fc_press: 0,
-        fc_temp: 0,
-    });
-pub static FCC_PACK2_DATA: Mutex<ThreadModeRawMutex, FDCAN_FccPack2_t> =
-    Mutex::new(FDCAN_FccPack2_t {
-        fan_rpm1: 0,
-        fan_rpm2: 0,
-    });
-pub static FCC_PACK3_DATA: Mutex<ThreadModeRawMutex, FDCAN_FccPack3_t> =
-    Mutex::new(FDCAN_FccPack3_t {
-        bme_temp: 0,
-        bme_humid: 0,
-    });
-
-pub static H2_PACK1_DATA: Mutex<ThreadModeRawMutex, ECOCAN_H2Pack1_t> =
-    Mutex::new(ECOCAN_H2Pack1_t {
-        h2_sense_1: 0,
-        h2_sense_2: 0,
-        h2_sense_3: 0,
-        h2_sense_4: 0,
-    });
-pub static H2_PACK2_DATA: Mutex<ThreadModeRawMutex, ECOCAN_H2Pack2_t> =
-    Mutex::new(ECOCAN_H2Pack2_t {
-        bme_temp: 0,
-        bme_humid: 0,
-        imon_7v: 0,
-        imon_12v: 0,
-    });
-
-pub static BOOST_PACK1_DATA: Mutex<ThreadModeRawMutex, FDCAN_BOOSTPack1_t> =
-    Mutex::new(FDCAN_BOOSTPack1_t {
-        in_curr: 0,
-        in_volt: 0,
-    });
-pub static BOOST_PACK2_DATA: Mutex<ThreadModeRawMutex, FDCAN_BOOSTPack2_t> =
-    Mutex::new(FDCAN_BOOSTPack2_t {
-        out_curr: 0,
-        out_volt: 0,
-    });
-pub static BOOST_PACK3_DATA: Mutex<ThreadModeRawMutex, FDCAN_BOOSTPack3_t> =
-    Mutex::new(FDCAN_BOOSTPack3_t {
-        efficiency: 0,
-        joules: 0,
-    });
-
-/// Fuel Cell Reading
-pub static REL_FC_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackFc_t> =
-    Mutex::new(FDCAN_RelPackFc_t {
-        fc_volt: 0,
-        fc_curr: 0,
-    });
-pub static REL_CAP_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackCap_t> =
-    Mutex::new(FDCAN_RelPackCap_t {
-        cap_volt: 0,
-        cap_curr: 0,
-    });
-pub static RELAY_MOTOR_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
-    Mutex::new(FDCAN_RelPackMtr_t {
-        mtr_volt: 0,
-        mtr_curr: 0,
-    }); */
-
 use crate::display_mod::{CENTER_POINT, DisplayDevice};
 use eg_seven_segment::SevenSegmentStyleBuilder;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
@@ -149,8 +73,8 @@ async fn render_can_value(
 /// Renders the display in Standby Mode
 ///
 /// `render_field_name` - If true then render the field name of each canbus value
-pub async fn standby_gui(display: &mut DisplayDevice, render_field_name: bool, frame_index: u32) {
-    let mock_value = 8u32.saturating_pow(frame_index / 10) + frame_index;
+pub async fn render_standby_gui(display: &mut DisplayDevice, render_field_name: bool) {
+    let mock_value = 0;
 
     // RELAY_STATE
     render_can_value("relay_state", mock_value, render_field_name, display).await;

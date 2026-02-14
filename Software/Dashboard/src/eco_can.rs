@@ -66,7 +66,7 @@ pub enum RelayBit {
 }
 /// Relay Board State
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug, Format)]
+#[derive(Clone, Debug, Format, PartialEq, Eq)]
 #[repr(u8)]
 pub enum RelayState {
     RELAY_STBY = RelayBit::ALL_RELAY_OFF as u8,

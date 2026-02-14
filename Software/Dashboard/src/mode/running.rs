@@ -1,34 +1,23 @@
 use eg_seven_segment::SevenSegmentStyleBuilder;
-use embedded_graphics::mono_font::iso_8859_13::FONT_10X20;
 use embedded_graphics::prelude::Transform;
 use embedded_graphics::prelude::WebColors;
 use embedded_graphics::primitives::PrimitiveStyle;
-use embedded_graphics::primitives::{
-    Circle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment, StyledDrawable,
-};
+use embedded_graphics::primitives::{Rectangle, StyledDrawable};
 
 use embedded_graphics::text::renderer::CharacterStyle;
 use embedded_graphics::{
     Drawable,
     geometry::AnchorX,
-    mono_font::MonoTextStyle,
     pixelcolor::Rgb666,
     prelude::{Point, RgbColor, Size},
     text::{Alignment, Text},
 };
 
-use crate::display_mod::{CENTER_POINT, DISPLAY_HEIGHT, DISPLAY_WIDTH, DisplayDevice};
-
-const SPEED_FONT_WIDTH: u32 = 27;
-const SPEED_FONT_HEIGHT: u32 = 63;
-
-const EFF_FONT_WIDTH: u32 = 15;
-const EFF_FONT_HEIGHT: u32 = 25;
-const EFF_POS: Point = Point::new(50, DISPLAY_HEIGHT as i32 - 50);
-
-const BATT_WIDTH: u32 = 16;
-const BATT_HEIGHT: u32 = 40;
-const BATT_POS: Point = Point::new(DISPLAY_WIDTH as i32 - 40, DISPLAY_HEIGHT as i32 - 60);
+use super::init_running::{
+    BATT_HEIGHT, BATT_POS, BATT_WIDTH, EFF_FONT_HEIGHT, EFF_FONT_WIDTH, EFF_POS, SPEED_FONT_HEIGHT,
+    SPEED_FONT_WIDTH,
+};
+use crate::display_mod::{CENTER_POINT, DisplayDevice};
 
 fn greater_than_10(val: u32) -> bool {
     val >= 10
@@ -221,103 +210,17 @@ fn render_battery_gui(display: &mut DisplayDevice, battery_health: u8, prev_batt
     .unwrap();
 }
 
-fn init_render_speed_gui(display: &mut DisplayDevice) {
-    let speed_unit_style = MonoTextStyle::new(&FONT_10X20, Rgb666::RED);
-    let speed_circle_style = PrimitiveStyleBuilder::new()
-        .stroke_color(Rgb666::CSS_FIRE_BRICK)
-        .stroke_width(5)
-        .stroke_alignment(StrokeAlignment::Outside)
-        .build();
-
-    // Render Speed Circle
-    Circle::with_center(CENTER_POINT, 120)
-        .draw_styled(&speed_circle_style, display)
-        .unwrap();
-    // Render Speed Unit
-    Text::with_alignment(
-        "km/h",
-        CENTER_POINT + Point::new(0, SPEED_FONT_HEIGHT as i32 / 2 + 15),
-        speed_unit_style,
-        Alignment::Center,
-    )
-    .draw(display)
-    .unwrap();
-}
-
-fn init_render_efficiency_gui(display: &mut DisplayDevice) {
-    let eff_unit_style = MonoTextStyle::new(&FONT_10X20, Rgb666::GREEN);
-    let eff_circle_style = PrimitiveStyleBuilder::new()
-        .stroke_color(Rgb666::GREEN)
-        .stroke_width(4)
-        .stroke_alignment(StrokeAlignment::Outside)
-        .build();
-    // Render Efficiency Circle
-    Circle::with_center(EFF_POS, 70)
-        .draw_styled(&eff_circle_style, display)
-        .unwrap();
-    // Render Efficiency %
-    Text::with_alignment(
-        "%",
-        EFF_POS + Point::new(EFF_FONT_WIDTH as i32 + 2, EFF_FONT_HEIGHT as i32 / 2),
-        eff_unit_style,
-        Alignment::Left,
-    )
-    .draw(display)
-    .unwrap();
-}
-
-fn init_render_battery_gui(display: &mut DisplayDevice) {
-    let bat_tip_width = 12;
-    let bat_tip_height = 8;
-
-    let bat_tip = Rectangle::new(
-        BATT_POS + Point::new((BATT_WIDTH as i32 - bat_tip_width) / 2, -bat_tip_height),
-        Size::new(bat_tip_width as u32, bat_tip_height as u32),
-    );
-    let batt_outline = Rectangle::new(BATT_POS, Size::new(BATT_WIDTH, BATT_HEIGHT));
-
-    let outline_style = PrimitiveStyleBuilder::new()
-        .stroke_alignment(StrokeAlignment::Outside)
-        .stroke_color(Rgb666::WHITE)
-        .stroke_width(4)
-        .build();
-    let tip_style = PrimitiveStyle::with_fill(Rgb666::WHITE);
-    let batt_unit_style = MonoTextStyle::new(&FONT_10X20, Rgb666::WHITE);
-
-    // Render Battery Tip
-    bat_tip.draw_styled(&tip_style, display).unwrap();
-    // Render Battery Border
-    batt_outline.draw_styled(&outline_style, display).unwrap();
-    // Render Battey %
-    Text::with_alignment(
-        "%",
-        BATT_POS + Point::new(-8, 40),
-        batt_unit_style,
-        Alignment::Right,
-    )
-    .draw(display)
-    .unwrap();
-}
-
-pub fn init_render_running_gui(display: &mut DisplayDevice) {
-    init_render_speed_gui(display);
-    init_render_efficiency_gui(display);
-    init_render_battery_gui(display);
-}
-
-pub fn running_gui(display: &mut DisplayDevice, frame_index: u32, prev_frame_index: u32) {
+pub fn render_running_gui(display: &mut DisplayDevice) {
     ///////////////////////////////
     // Render Graphics
     ///////////////////////////////
-    let prev_frac = prev_frame_index as f32 / 100f32;
-    let prev_rpm = prev_frac * 5000f32;
-    let prev_speed = prev_frac * 40f32;
+    let prev_rpm = 1500;
+    let prev_speed = 20;
 
-    let frac = frame_index as f32 / 100f32;
-    let rpm = frac * 5000f32;
-    let speed = frac * 40f32;
+    let rpm = 1500;
+    let speed = 20;
     render_tach_widgets(display, rpm as u32, prev_rpm as u32);
     render_speed_widgets(display, speed as u32, prev_speed as u32);
-    render_efficiency_gui(display, frame_index as u8, prev_frame_index as u8);
-    render_battery_gui(display, frame_index as u8, prev_frame_index as u8);
+    render_efficiency_gui(display, 50, 50);
+    render_battery_gui(display, 50, 50);
 }

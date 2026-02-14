@@ -5,7 +5,5 @@ runner = "probe-rs run --chip STM32G491KE"
 [build]
 target = "thumbv7em-none-eabihf"
 
-
 [env]
-# DEFMT_LOG = 'info'
-DEFMT_LOG = 'debug'
+DEFMT_LOG = "trace"
