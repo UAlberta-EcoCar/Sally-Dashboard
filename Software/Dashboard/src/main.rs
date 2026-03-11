@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+use dashboard::btn_mod::{btn1_task, btn2_task};
 use dashboard::can_mod::{RX_BUF_SIZE, TX_BUF_SIZE, can_receive_task};
 use dashboard::display_mod::display_task;
 use dashboard::led_mod::led_task;
@@ -74,7 +75,6 @@ async fn main(spawner: Spawner) {
     );
     // Nominal Baud Rate: 1M bits/s
     can.set_bitrate(1_000_000);
-    // can.set_bitrate(1_000_000);
 
     let can = can.start(can::OperatingMode::ExternalLoopbackMode);
 
@@ -90,8 +90,8 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize External Interrupt Buttons
     ////////////////////////////////
-    let _btn1 = ExtiInput::new(peripherals.PB3, peripherals.EXTI3, Pull::Up);
-    let _btn2 = ExtiInput::new(peripherals.PB4, peripherals.EXTI4, Pull::Up);
+    let btn1 = ExtiInput::new(peripherals.PB3, peripherals.EXTI3, Pull::Up);
+    let btn2 = ExtiInput::new(peripherals.PB4, peripherals.EXTI4, Pull::Up);
 
     ////////////////////////////////
     // Initialize LED Lights
@@ -188,6 +188,6 @@ async fn main(spawner: Spawner) {
     spawner.spawn(can_receive_task(can)).unwrap();
     spawner.spawn(led_task(led_in, led_dma)).unwrap();
     spawner.spawn(display_task(display)).unwrap();
-    // spawner.spawn(btn1_task(btn1)).unwrap();
-    // spawner.spawn(btn2_task(btn2)).unwrap();
+    spawner.spawn(btn1_task(btn1)).unwrap();
+    spawner.spawn(btn2_task(btn2)).unwrap();
 }

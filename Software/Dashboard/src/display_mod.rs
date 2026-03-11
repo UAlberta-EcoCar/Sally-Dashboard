@@ -85,7 +85,10 @@ pub async fn display_task(mut display: DisplayDevice) {
     let end = Instant::now().as_millis();
     info!("Full Screen Clear: {} ms", end - start);
 
-    let mut prev_relay_state: Option<RelayState> = None;
+    let mut prev_relay_state = RelayState::RELAY_STRTP;
+
+    // Always render default startup screen
+    render_startup_gui(&mut display);
 
     loop {
         let relay_state_lock = RELAY_STATE.lock().await;
@@ -93,17 +96,16 @@ pub async fn display_task(mut display: DisplayDevice) {
         drop(relay_state_lock);
 
         // Inialized display screen if switching relay state
-        if prev_relay_state.is_none() || *prev_relay_state.as_ref().unwrap() != relay_state {
+        if prev_relay_state != relay_state {
             match relay_state {
                 RelayState::RELAY_STRTP => render_startup_gui(&mut display),
                 RelayState::RELAY_CHRGE => init_render_charging_gui(&mut display),
                 RelayState::RELAY_STBY => render_standby_gui(&mut display, true).await,
                 RelayState::RELAY_RUN => init_render_running_gui(&mut display),
             }
+            // Update previous relay state
+            prev_relay_state = relay_state.clone();
         }
-
-        // Update previous relay state
-        prev_relay_state = Some(relay_state.clone());
 
         // Update display with current relay state
         match relay_state {

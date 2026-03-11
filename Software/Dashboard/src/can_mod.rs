@@ -15,14 +15,11 @@
 
 use bincode::{
     Decode, Encode,
-    config::{self, Configuration},
+    config::Configuration,
     error::{DecodeError, EncodeError},
 };
 use defmt::*;
-use embassy_stm32::{
-    can::{BufferedCanFd, Can, Frame, frame::FdFrame},
-    gpio::Output,
-};
+use embassy_stm32::can::{BufferedCanFd, Can, Frame, frame::FdFrame};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 use embassy_time::Timer;
 use embedded_can::Id;
@@ -141,7 +138,7 @@ pub async fn can_receive_task(mut can: Can<'static>) {
                         Frame::new_extended(FDCAN_RelPackCap_t::FDCAN_ID, &tx_data[..tx_len])
                             .unwrap();
                     info!("Sending CAN frame...");
-                    let f = can.write(&frame).await;
+                    let _ = can.write(&frame).await;
                     // info!("{:?}", f);
                 }
                 Err(_) => {
@@ -170,14 +167,14 @@ pub async fn can_receive_task(mut can: Can<'static>) {
 }
 
 /// Process the remaining CAN frames in the RX buffer
-async fn drain_rx_can_buffer(can: &BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SIZE>) {
+async fn _drain_rx_can_buffer(can: &BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SIZE>) {
     // repeatedly call try_receive() until the buffer is empty
     let reader = can.reader();
     for _ in 0..RX_BUF_SIZE {
         if let Ok(frame) = reader.try_receive() {
             match frame {
                 Ok(envelope) => {
-                    // process_rx_can_frame(&envelope.frame).await;
+                    process_rx_can_frame(&envelope.frame).await;
                 }
                 Err(err) => error!("CAN Frame Error: {}", err),
             }
