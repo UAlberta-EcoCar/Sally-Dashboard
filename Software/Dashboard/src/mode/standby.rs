@@ -1,3 +1,7 @@
+use crate::can_mod::{
+    BOOST_PACK1_DATA, BOOST_PACK2_DATA, BOOST_PACK3_DATA, FCC_PACK1_DATA, FCC_PACK2_DATA, FET_DATA,
+    H2_PACK1_DATA, H2_PACK2_DATA, REL_CAP_PACK, REL_FC_PACK, RELAY_MOTOR_PACK, RELAY_STATE,
+};
 use crate::display_mod::{CENTER_POINT, DisplayDevice};
 use eg_seven_segment::SevenSegmentStyleBuilder;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
@@ -74,66 +78,170 @@ async fn render_can_value(
 ///
 /// `render_field_name` - If true then render the field name of each canbus value
 pub async fn render_standby_gui(display: &mut DisplayDevice, render_field_name: bool) {
-    let mock_value = 0;
-
     // RELAY_STATE
-    render_can_value("relay_state", mock_value, render_field_name, display).await;
+    let relay_state = RELAY_STATE.lock().await;
+    let relay_state_val = (*relay_state).clone() as u32;
+    render_can_value("relay_state", relay_state_val, render_field_name, display).await;
+    drop(relay_state);
 
     // FET_DATA
-    render_can_value("fet_config", mock_value, render_field_name, display).await;
-    render_can_value("input_volt", mock_value, render_field_name, display).await;
-    render_can_value("cap_volt", mock_value, render_field_name, display).await;
-    render_can_value("cap_curr", mock_value, render_field_name, display).await;
-    render_can_value("res_curr", mock_value, render_field_name, display).await;
-    render_can_value("out_curr", mock_value, render_field_name, display).await;
+    let fet_data = FET_DATA.lock().await;
+    render_can_value(
+        "fet_config",
+        fet_data.fet_config,
+        render_field_name,
+        display,
+    )
+    .await;
+    render_can_value(
+        "input_volt",
+        fet_data.input_volt,
+        render_field_name,
+        display,
+    )
+    .await;
+    render_can_value("cap_volt", fet_data.cap_volt, render_field_name, display).await;
+    render_can_value("cap_curr", fet_data.cap_curr, render_field_name, display).await;
+    render_can_value("res_curr", fet_data.res_curr, render_field_name, display).await;
+    render_can_value("out_curr", fet_data.out_curr, render_field_name, display).await;
+    drop(fet_data);
 
     // FCC_PACK1_DATA
-    render_can_value("fc_press", mock_value, render_field_name, display).await;
-    render_can_value("fc_temp", mock_value, render_field_name, display).await;
+    let fcc_pack1_data = FCC_PACK1_DATA.lock().await;
+    render_can_value(
+        "fc_press",
+        fcc_pack1_data.fc_press,
+        render_field_name,
+        display,
+    )
+    .await;
+    render_can_value(
+        "fc_temp",
+        fcc_pack1_data.fc_temp as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    drop(fcc_pack1_data);
 
     // FCC_PACK2_DATA
-    render_can_value("fan_rpm1", mock_value, render_field_name, display).await;
-    render_can_value("fan_rpm2", mock_value, render_field_name, display).await;
+    let fcc_pack2 = FCC_PACK2_DATA.lock().await;
+    render_can_value("fan_rpm1", fcc_pack2.fan_rpm1, render_field_name, display).await;
+    render_can_value("fan_rpm2", fcc_pack2.fan_rpm2, render_field_name, display).await;
+    drop(fcc_pack2);
 
-    // // FCC_PACK3_DATA
-    // render_can_value("bme_temp", mock_value, render_field_name,display).await;
-    // render_can_value("bme_humid", mock_value, render_field_name,display).await;
+    // FCC_PACK3_DATA
+    // Values are already displayed from other packets
+    // let fcc_pack3 = FCC_PACK3_DATA.lock().await;
+    // render_can_value("bme_temp", fcc_pack3.bme_temp, render_field_name, display).await;
+    // render_can_value("bme_humid", fcc_pack3.bme_humid, render_field_name, display).await;
+    // drop(fcc_pack3);
 
     // H2_PACK1_DATA
-    render_can_value("h2_sense_1", mock_value, render_field_name, display).await;
-    render_can_value("h2_sense_2", mock_value, render_field_name, display).await;
-    render_can_value("h2_sense_3", mock_value, render_field_name, display).await;
-    render_can_value("h2_sense_4", mock_value, render_field_name, display).await;
+    let h2_pack1 = H2_PACK1_DATA.lock().await;
+    render_can_value(
+        "h2_sense_1",
+        h2_pack1.h2_sense_1 as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    render_can_value(
+        "h2_sense_2",
+        h2_pack1.h2_sense_2 as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    render_can_value(
+        "h2_sense_3",
+        h2_pack1.h2_sense_3 as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    render_can_value(
+        "h2_sense_4",
+        h2_pack1.h2_sense_4 as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    drop(h2_pack1);
 
     // H2_PACK2_DATA
-    render_can_value("bme_temp", mock_value, render_field_name, display).await;
-    render_can_value("bme_humid", mock_value, render_field_name, display).await;
-    render_can_value("imon_7v", mock_value, render_field_name, display).await;
-    render_can_value("imon_12v", mock_value, render_field_name, display).await;
+    let h2_pack2 = H2_PACK2_DATA.lock().await;
+    render_can_value(
+        "bme_temp",
+        h2_pack2.bme_temp as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    render_can_value(
+        "bme_humid",
+        h2_pack2.bme_humid as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    render_can_value(
+        "imon_7v",
+        h2_pack2.imon_7v as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    render_can_value(
+        "imon_12v",
+        h2_pack2.imon_12v as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    drop(h2_pack2);
 
     // BOOST_PACK1_DATA
-    render_can_value("in_curr", mock_value, render_field_name, display).await;
-    render_can_value("in_volt", mock_value, render_field_name, display).await;
+    let boost1 = BOOST_PACK1_DATA.lock().await;
+    render_can_value("in_curr", boost1.in_curr, render_field_name, display).await;
+    render_can_value("in_volt", boost1.in_volt, render_field_name, display).await;
+    drop(boost1);
 
     // BOOST_PACK2_DATA
-    render_can_value("out_curr", mock_value, render_field_name, display).await;
-    render_can_value("out_volt", mock_value, render_field_name, display).await;
+    let boost2 = BOOST_PACK2_DATA.lock().await;
+    render_can_value("out_curr", boost2.out_curr, render_field_name, display).await;
+    render_can_value("out_volt", boost2.out_volt, render_field_name, display).await;
+    drop(boost2);
 
     // BOOST_PACK3_DATA
-    render_can_value("efficiency", mock_value, render_field_name, display).await;
-    render_can_value("joules", mock_value, render_field_name, display).await;
+    let boost3 = BOOST_PACK3_DATA.lock().await;
+    render_can_value("efficiency", boost3.efficiency, render_field_name, display).await;
+    render_can_value("joules", boost3.joules, render_field_name, display).await;
+    drop(boost3);
 
     // REL_FC_PACK
-    render_can_value("fc_volt", mock_value, render_field_name, display).await;
-    render_can_value("fc_curr", mock_value, render_field_name, display).await;
+    let rel_fc = REL_FC_PACK.lock().await;
+    render_can_value("fc_volt", rel_fc.fc_volt, render_field_name, display).await;
+    render_can_value("fc_curr", rel_fc.fc_curr, render_field_name, display).await;
+    drop(rel_fc);
 
     // REL_CAP_PACK
-    render_can_value("cap_volt", mock_value, render_field_name, display).await;
-    render_can_value("cap_curr", mock_value, render_field_name, display).await;
+    let rel_cap = REL_CAP_PACK.lock().await;
+    render_can_value("cap_volt", rel_cap.cap_volt, render_field_name, display).await;
+    render_can_value(
+        "cap_curr",
+        rel_cap.cap_curr as u32,
+        render_field_name,
+        display,
+    )
+    .await;
+    drop(rel_cap);
 
     // REL_MOTOR_PACK
-    render_can_value("mtr_volt", mock_value, render_field_name, display).await;
-    render_can_value("mtr_curr", mock_value, render_field_name, display).await;
+    let rel_mtr = RELAY_MOTOR_PACK.lock().await;
+    render_can_value("mtr_volt", rel_mtr.mtr_volt, render_field_name, display).await;
+    render_can_value("mtr_curr", rel_mtr.mtr_curr, render_field_name, display).await;
+    drop(rel_mtr);
 
     // Reset Row number after each frame
     let mut row = CURRENT_ROW.lock().await;

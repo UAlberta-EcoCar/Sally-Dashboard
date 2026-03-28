@@ -1,4 +1,7 @@
+use core::sync::atomic::AtomicU32;
+
 use super::init_charging::*;
+use crate::can_mod::REL_FC_PACK;
 use crate::display_mod::{CENTER_POINT, DisplayDevice};
 use eg_seven_segment::SevenSegmentStyleBuilder;
 use embedded_graphics::primitives::StyledDrawable;
@@ -10,6 +13,8 @@ use embedded_graphics::{
     primitives::{Arc, PrimitiveStyle},
     text::{Alignment, Text},
 };
+
+static PREV_BATT_VOLTAGE: AtomicU32 = AtomicU32::new(0);
 
 fn render_battery_voltage_gui(
     display: &mut DisplayDevice,
@@ -81,9 +86,15 @@ fn render_battery_meter_gui(display: &mut DisplayDevice, battery_percent: f32) {
     .unwrap();
 }
 
-pub fn render_charging_gui(display: &mut DisplayDevice) {
-    let prev_batt_voltage = 0;
-    let batt_voltage = 0;
+pub async fn render_charging_gui(display: &mut DisplayDevice) {
+    let prev_batt_voltage = PREV_BATT_VOLTAGE.load(core::sync::atomic::Ordering::Relaxed);
+    let relay_fc_pack = REL_FC_PACK.lock().await;
+    let batt_voltage = relay_fc_pack.fc_volt;
+    drop(relay_fc_pack);
+    let batt_voltage_percent = batt_voltage as f32 / 48.0;
+
     render_battery_voltage_gui(display, batt_voltage, prev_batt_voltage);
-    render_battery_meter_gui(display, 50.0);
+    render_battery_meter_gui(display, batt_voltage_percent);
+
+    PREV_BATT_VOLTAGE.store(batt_voltage, core::sync::atomic::Ordering::Relaxed);
 }
