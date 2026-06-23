@@ -7,6 +7,11 @@ use dashboard::led_mod::led_task;
 use defmt::*;
 use display_interface_spi::SPIInterface;
 use embassy_executor::Spawner;
+use embassy_stm32::can::filter::Mask32;
+use embassy_stm32::can::{
+    Can, Fifo, Frame, Id, Rx0InterruptHandler, Rx1InterruptHandler, SceInterruptHandler,
+    TxInterruptHandler,
+};
 use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::gpio::{Level, Output, OutputType, Pull, Speed};
 use embassy_stm32::spi::{self, Spi};
@@ -17,12 +22,13 @@ use embassy_stm32::{Config, bind_interrupts, can, peripherals::*};
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use ili9488_rs::{Ili9488, Orientation, Rgb666Mode};
-use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
-    FDCAN2_IT0 => can::IT0InterruptHandler<FDCAN2>;
-    FDCAN2_IT1 => can::IT1InterruptHandler<FDCAN2>;
+    CAN1_RX0 => Rx0InterruptHandler<CAN1>;
+    CAN1_RX1 => Rx1InterruptHandler<CAN1>;
+    CAN1_SCE => SceInterruptHandler<CAN1>;
+    CAN1_TX => TxInterruptHandler<CAN1>;
 });
 
 #[embassy_executor::main]
@@ -37,20 +43,15 @@ async fn main(spawner: Spawner) {
     let mut config = Config::default();
     {
         use embassy_stm32::rcc::*;
-        // Use external 8 MHz crystal osscillator
-        config.rcc.hse = Some(Hse {
-            freq: Hertz(8_000_000),
-            mode: HseMode::Bypass,
-        });
         config.rcc.pll = Some(Pll {
-            source: PllSource::HSE,
-            prediv: PllPreDiv::DIV2,
-            mul: PllMul::MUL85,
-            divp: Some(PllPDiv::DIV2), // 170 MHz PLLP
-            divq: Some(PllQDiv::DIV2), // 170 MHz PLLQ
-            divr: Some(PllRDiv::DIV2), // Main system clock at 170 MHz
+            source: PllSource::HSI,
+            prediv: PllPreDiv::DIV1,
+            mul: PllMul::MUL10,
+            divp: None,
+            divq: None,
+            divr: Some(PllRDiv::DIV2), // Main system clock at 80 MHz
         });
-        config.rcc.mux.fdcansel = mux::Fdcansel::HSE;
+        config.rcc.hsi = true;
         config.rcc.sys = Sysclk::PLL1_R;
     }
     let peripherals = embassy_stm32::init(config);
@@ -58,40 +59,34 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize CAN
     ////////////////////////////////
-    static _TX_BUF: StaticCell<can::TxFdBuf<TX_BUF_SIZE>> = StaticCell::new();
-    static _RX_BUF: StaticCell<can::RxFdBuf<RX_BUF_SIZE>> = StaticCell::new();
-    let can_rx = peripherals.PB5;
-    let can_tx = peripherals.PB6;
-    let can_stby = peripherals.PB7;
+    // static _TX_BUF: StaticCell<can::TxFdBuf<TX_BUF_SIZE>> = StaticCell::new();
+    // static _RX_BUF: StaticCell<can::RxFdBuf<RX_BUF_SIZE>> = StaticCell::new();
+    let can_rx = peripherals.PA11;
+    let can_tx = peripherals.PA12;
+    let can_stby = peripherals.PB1;
 
-    let mut can = can::CanConfigurator::new(peripherals.FDCAN2, can_rx, can_tx, Irqs);
+    let mut can = Can::new(peripherals.CAN1, can_rx, can_tx, Irqs);
     let _can_stby = Output::new(can_stby, Level::Low, Speed::Low);
     // Because the destructor resets the gpio pin's state, use mem::forget to drop the variable
     core::mem::forget(_can_stby);
 
-    can.properties().set_extended_filter(
-        can::filter::ExtendedFilterSlot::_0,
-        can::filter::ExtendedFilter::accept_all_into_fifo1(),
-    );
-    // Nominal Baud Rate: 1M bits/s
-    can.set_bitrate(1_000_000);
+    can.modify_filters()
+        .enable_bank(0, can::Fifo::Fifo0, Mask32::accept_all());
 
-    let can = can.start(can::OperatingMode::ExternalLoopbackMode);
+    can.modify_config()
+        .set_loopback(false) // Receive own frames
+        // .set_loopback(true) // Receive own frames
+        .set_silent(false)
+        .set_bitrate(100_000);
+    can.enable().await;
 
-    // Use internal loop back mode for debugging
-    // let can = can.start(can::OperatingMode::InternalLoopbackMode);
-
-    // let can = can.buffered_fd(
-    //     TX_BUF.init(can::TxFdBuf::new()),
-    //     RX_BUF.init(can::RxFdBuf::new()),
-    // );
     info!("Configured CAN");
 
     ////////////////////////////////
     // Initialize External Interrupt Buttons
     ////////////////////////////////
-    let btn1 = ExtiInput::new(peripherals.PB3, peripherals.EXTI3, Pull::Up);
-    let btn2 = ExtiInput::new(peripherals.PB4, peripherals.EXTI4, Pull::Up);
+    let btn1 = ExtiInput::new(peripherals.PA8, peripherals.EXTI8, Pull::Up);
+    let btn2 = ExtiInput::new(peripherals.PA9, peripherals.EXTI9, Pull::Up);
 
     ////////////////////////////////
     // Initialize LED Lights
@@ -126,7 +121,7 @@ async fn main(spawner: Spawner) {
     spi_config.miso_pull = embassy_stm32::gpio::Pull::Up;
     spi_config.gpio_speed = Speed::VeryHigh;
 
-    let spi_sck = peripherals.PA5;
+    let spi_sck = peripherals.PA1;
     let spi_miso = peripherals.PA6;
     let spi_mosi = peripherals.PA7;
 
@@ -135,8 +130,8 @@ async fn main(spawner: Spawner) {
         spi_sck,
         spi_mosi,
         spi_miso,
-        peripherals.DMA1_CH1,
-        peripherals.DMA1_CH2,
+        peripherals.DMA1_CH3,
+        peripherals.DMA2_CH3,
         spi_config,
     );
 
@@ -145,19 +140,19 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize Touch Screen Peripherals
     ////////////////////////////////
-    let touch_cs = peripherals.PA9;
-    let _touch_irq = peripherals.PA8;
+    // let touch_cs = peripherals.PB0;
+    // let _touch_irq = peripherals.PB1;
 
     // CS is Active Low
-    let _touch_cs = Output::new(touch_cs, Level::High, Speed::VeryHigh);
+    // let _touch_cs = Output::new(touch_cs, Level::High, Speed::VeryHigh);
 
     ////////////////////////////////
     // Initialize Screen Peripherals
     ////////////////////////////////
-    let lcd_cs = peripherals.PA4;
-    let lcd_reset = peripherals.PB0;
-    let lcd_bright = peripherals.PA2;
-    let lcd_dc = peripherals.PA3;
+    let lcd_cs = peripherals.PA5;
+    let lcd_reset = peripherals.PA3;
+    let lcd_bright = peripherals.PA4;
+    let lcd_dc = peripherals.PA10;
 
     let lcd_cs = Output::new(lcd_cs, Level::High, Speed::VeryHigh);
     let lcd_reset = Output::new(lcd_reset, Level::Low, Speed::VeryHigh);
@@ -186,8 +181,8 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     info!("Spawning Tasks");
     spawner.spawn(can_receive_task(can)).unwrap();
-    spawner.spawn(led_task(led_in, led_dma)).unwrap();
+    // spawner.spawn(led_task(led_in, led_dma)).unwrap();
     spawner.spawn(display_task(display)).unwrap();
-    spawner.spawn(btn1_task(btn1)).unwrap();
-    spawner.spawn(btn2_task(btn2)).unwrap();
+    //     spawner.spawn(btn1_task(btn1)).unwrap();
+    //     spawner.spawn(btn2_task(btn2)).unwrap();
 }

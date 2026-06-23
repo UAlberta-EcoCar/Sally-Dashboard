@@ -7,7 +7,7 @@
 // use defmt::info;
 use defmt::trace;
 use embassy_stm32::Peri;
-use embassy_stm32::peripherals::{DMA2_CH1, TIM2};
+use embassy_stm32::peripherals::{DMA1_CH1, TIM2};
 use embassy_stm32::timer::simple_pwm::SimplePwm;
 use embassy_time::Timer;
 use rgb_led_pwm_dma_maker::{LedDataComposition, LedDmaBuffer, RGB, calc_dma_buffer_length};
@@ -20,7 +20,7 @@ const LED_COUNT: usize = 5;
 
 /// Updates the LED lights on the dashboard
 #[embassy_executor::task]
-pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'static, DMA2_CH1>) {
+pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'static, DMA1_CH1>) {
     // RESET_LENGTH = reset_period / data_transfer_time = 50us / 1.25us = 40
     const RESET_LENGTH: usize = 40;
     // Calculate the dma buffer's length at compile time
@@ -53,7 +53,7 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
         let _ = dma_buffer.set_dma_buffer(&led_array, None);
         // Output pwm waveform to set LEDs
         led_in
-            .waveform::<embassy_stm32::timer::Ch1>(led_dma.reborrow(), dma_buffer.get_dma_buffer())
+            .waveform::<embassy_stm32::timer::Ch3>(led_dma.reborrow(), dma_buffer.get_dma_buffer())
             .await;
         trace!("LED Health check");
         Timer::after_millis(600).await;
