@@ -79,9 +79,9 @@ pub const CENTER_POINT: Point = Point::new(DISPLAY_WIDTH as i32 / 2, DISPLAY_HEI
 /// Responsible for rendering data to the display
 #[embassy_executor::task]
 pub async fn display_task(mut display: DisplayDevice) {
-    info!("Time taken to do a full screen clear:");
+    info!("Initializing LCD Screen");
     let start = Instant::now().as_millis();
-    display.clear_screen(Rgb666::WHITE).unwrap();
+    display.clear_screen(Rgb666::GREEN).unwrap();
     let end = Instant::now().as_millis();
     info!("Full Screen Clear: {} ms", end - start);
 

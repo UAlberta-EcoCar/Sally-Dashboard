@@ -40,7 +40,7 @@ const BINCODE_CONFIG: Configuration<bincode::config::BigEndian, bincode::config:
         .with_big_endian()
         .with_fixed_int_encoding();
 
-pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_RUN);
+pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_STRTP);
 
 pub static FET_DATA: Mutex<ThreadModeRawMutex, FDCAN_FetPack_t> = Mutex::new(FDCAN_FetPack_t {
     fet_config: 0,
@@ -122,8 +122,8 @@ pub async fn can_receive_task(can: Can<'static>) {
     // Use the FD API's even if we don't get FD packets.
     let debug = true;
     if debug {
-        // debug_can_rx(can).await;
-        debug_can_loop(can).await;
+        debug_can_rx(can).await;
+        // debug_can_tx(can).await;
     }
     // loop {
     //     // await one frame (blocks until at least one frame arrives)
@@ -157,7 +157,7 @@ async fn debug_can_rx(mut can: Can<'static>) {
                     Id::Standard(id) => u32::from(id.as_raw()),
                     Id::Extended(id) => id.as_raw(),
                 };
-                info!("{}", rx_frame);
+                info!("Received: {}", rx_frame);
                 info!(
                     "Rx id: {:#08x} data len: {} data: {:#04x} --- {}ms",
                     id,
@@ -168,9 +168,10 @@ async fn debug_can_rx(mut can: Can<'static>) {
             }
             Err(err) => error!("Error in frame: {}", err),
         }
+        Timer::after_millis(500).await;
     }
 }
-async fn debug_can_loop(mut can: Can<'static>) {
+async fn debug_can_tx(mut can: Can<'static>) {
     let mut tx_data = [0; 64];
     loop {
         // for _ in 0..40 {

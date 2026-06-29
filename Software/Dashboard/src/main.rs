@@ -74,8 +74,8 @@ async fn main(spawner: Spawner) {
         .enable_bank(0, can::Fifo::Fifo0, Mask32::accept_all());
 
     can.modify_config()
-        .set_loopback(false) // Receive own frames
-        // .set_loopback(true) // Receive own frames
+        .set_loopback(false)
+        // .set_loopback(true) // Receivenew_extended own frames
         .set_silent(false)
         .set_bitrate(100_000);
     can.enable().await;
@@ -85,8 +85,8 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize External Interrupt Buttons
     ////////////////////////////////
-    let btn1 = ExtiInput::new(peripherals.PA8, peripherals.EXTI8, Pull::Up);
-    let btn2 = ExtiInput::new(peripherals.PA9, peripherals.EXTI9, Pull::Up);
+    // let btn1 = ExtiInput::new(peripherals.PA8, peripherals.EXTI8, Pull::Up);
+    // let btn2 = ExtiInput::new(peripherals.PA9, peripherals.EXTI9, Pull::Up);
 
     ////////////////////////////////
     // Initialize LED Lights
@@ -152,7 +152,7 @@ async fn main(spawner: Spawner) {
     let lcd_cs = peripherals.PA5;
     let lcd_reset = peripherals.PA3;
     let lcd_bright = peripherals.PA4;
-    let lcd_dc = peripherals.PA10;
+    let lcd_dc = peripherals.PA2;
 
     let lcd_cs = Output::new(lcd_cs, Level::High, Speed::VeryHigh);
     let lcd_reset = Output::new(lcd_reset, Level::Low, Speed::VeryHigh);
