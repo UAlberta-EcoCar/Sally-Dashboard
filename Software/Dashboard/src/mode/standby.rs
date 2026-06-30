@@ -5,6 +5,7 @@ use crate::can_mod::{
 use crate::display_mod::{CENTER_POINT, DisplayDevice};
 use eg_seven_segment::SevenSegmentStyleBuilder;
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
+use embassy_time::Timer;
 use embedded_graphics::mono_font::iso_8859_1::FONT_9X15;
 use embedded_graphics::mono_font::{MonoFont, MonoTextStyle};
 use embedded_graphics::text::renderer::CharacterStyle;
@@ -246,4 +247,7 @@ pub async fn render_standby_gui(display: &mut DisplayDevice, render_field_name: 
     // Reset Row number after each frame
     let mut row = CURRENT_ROW.lock().await;
     *row = 0;
+
+    // Lock frame rate to 2-3 fps, doesn't need high framerate
+    Timer::after_millis(400).await;
 }

@@ -19,7 +19,7 @@ use bincode::{
     error::{DecodeError, EncodeError},
 };
 use defmt::*;
-use embassy_stm32::can::{Can, Frame, frame::FdFrame};
+use embassy_stm32::can::{Can, Frame};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 use embassy_time::Timer;
 use embedded_can::Id;
@@ -35,12 +35,12 @@ pub const TX_BUF_SIZE: usize = 1;
 /// Buffer Size for the CAN RX buffer
 pub const RX_BUF_SIZE: usize = 20;
 
+pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_RUN);
+
 const BINCODE_CONFIG: Configuration<bincode::config::BigEndian, bincode::config::Fixint> =
     bincode::config::standard()
         .with_big_endian()
         .with_fixed_int_encoding();
-
-pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_STRTP);
 
 pub static FET_DATA: Mutex<ThreadModeRawMutex, FDCAN_FetPack_t> = Mutex::new(FDCAN_FetPack_t {
     fet_config: 0,
@@ -117,32 +117,32 @@ pub static RELAY_MOTOR_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
 
 /// Responsible for handling the reception of CAN messages
 #[embassy_executor::task]
-pub async fn can_receive_task(can: Can<'static>) {
+pub async fn can_receive_task(mut can: Can<'static>) {
     // pub async fn can_receive_task(mut can: BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SIZE>) {
     // Use the FD API's even if we don't get FD packets.
     let debug = true;
     if debug {
-        debug_can_rx(can).await;
+        debug_can_rx(&mut can).await;
         // debug_can_tx(can).await;
     }
-    // loop {
-    //     // await one frame (blocks until at least one frame arrives)
-    //     debug!("Waiting to receive CAN frame...");
-    //     match can.read_fd().await {
-    //         Ok(envelope) => {
-    //             // Process the first can frame received
-    //             process_rx_can_frame(&envelope.frame).await;
-    //             // then drain the receive buffer
-    //             // drain_rx_can_buffer(&can).await;
-    //         }
-    //         Err(err) => error!("CAN Frame Error: {}", err),
-    //     }
-    //     debug!("CAN Healh Check");
-    //     Timer::after_millis(1000).await;
-    // }
+    loop {
+        // await one frame (blocks until at least one frame arrives)
+        debug!("Waiting to receive CAN frame...");
+        match can.read().await {
+            Ok(envelope) => {
+                // Process the first can frame received
+                process_rx_can_frame(&envelope.frame).await;
+                // then drain the receive buffer
+                // drain_rx_can_buffer(&can).await;
+            }
+            Err(err) => error!("CAN Frame Error: {}", err),
+        }
+        debug!("CAN Healh Check");
+        Timer::after_millis(1000).await;
+    }
 }
 
-async fn debug_can_rx(mut can: Can<'static>) {
+async fn debug_can_rx(can: &mut Can<'static>) {
     let mut last_read_ts = embassy_time::Instant::now();
 
     loop {
@@ -157,14 +157,15 @@ async fn debug_can_rx(mut can: Can<'static>) {
                     Id::Standard(id) => u32::from(id.as_raw()),
                     Id::Extended(id) => id.as_raw(),
                 };
-                info!("Received: {}", rx_frame);
+                // info!("Received: {}", rx_frame);
                 info!(
                     "Rx id: {:#08x} data len: {} data: {:#04x} --- {}ms",
                     id,
                     rx_frame.header().len(),
                     rx_frame.data(),
                     delta,
-                )
+                );
+                process_rx_can_frame(&rx_frame).await;
             }
             Err(err) => error!("Error in frame: {}", err),
         }
@@ -222,7 +223,7 @@ async fn debug_can_tx(mut can: Can<'static>) {
 // }
 
 /// Decodes a CAN frame and handles decode errors
-async fn process_rx_can_frame(rx_frame: &FdFrame) {
+async fn process_rx_can_frame(rx_frame: &Frame) {
     if let Err(_) = decode_can_frame(&rx_frame).await {
         error!("CAN Decode Error");
     }
@@ -231,7 +232,7 @@ async fn process_rx_can_frame(rx_frame: &FdFrame) {
 /// Decodes a CAN frame into its corresponding CAN package
 ///
 /// Returns an error if the frame cannot be decoded.
-async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
+async fn decode_can_frame(frame: &Frame) -> Result<(), DecodeError> {
     // Get ID
     let id = match frame.header().id() {
         Id::Standard(id) => u32::from(id.as_raw()),

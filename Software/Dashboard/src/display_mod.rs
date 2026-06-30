@@ -97,6 +97,8 @@ pub async fn display_task(mut display: DisplayDevice) {
 
         // Inialized display screen if switching relay state
         if prev_relay_state != relay_state {
+            let _ = display.clear_screen_fast(ili9488_rs::Rgb111::BLACK);
+
             match relay_state {
                 RelayState::RELAY_STRTP => render_startup_gui(&mut display),
                 RelayState::RELAY_CHRGE => init_render_charging_gui(&mut display),
@@ -107,15 +109,20 @@ pub async fn display_task(mut display: DisplayDevice) {
             prev_relay_state = relay_state.clone();
         }
 
+        let frame_start = Instant::now().as_millis();
         // Update display with current relay state
         match relay_state {
             RelayState::RELAY_STRTP => (),
             RelayState::RELAY_CHRGE => render_charging_gui(&mut display).await,
             RelayState::RELAY_STBY => render_standby_gui(&mut display, false).await,
-            RelayState::RELAY_RUN => render_running_gui(&mut display),
+            RelayState::RELAY_RUN => render_running_gui(&mut display).await,
         }
 
-        trace!("Display Health check");
-        Timer::after_millis(2000).await;
+        let frame_end = Instant::now().as_millis();
+        trace!(
+            "Display Health Check: Frame Rate = {} fps",
+            (1000.0 / (frame_end - frame_start) as f32 + 0.5) as u32
+        );
+        Timer::after_millis(5).await;
     }
 }

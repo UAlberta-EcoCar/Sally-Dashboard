@@ -17,6 +17,7 @@ use super::init_running::{
     BATT_HEIGHT, BATT_POS, BATT_WIDTH, EFF_FONT_HEIGHT, EFF_FONT_WIDTH, EFF_POS, SPEED_FONT_HEIGHT,
     SPEED_FONT_WIDTH,
 };
+use crate::can_mod::RELAY_MOTOR_PACK;
 use crate::display_mod::{CENTER_POINT, DisplayDevice};
 
 fn greater_than_10(val: u32) -> bool {
@@ -210,17 +211,21 @@ fn render_battery_gui(display: &mut DisplayDevice, battery_health: u8, prev_batt
     .unwrap();
 }
 
-pub fn render_running_gui(display: &mut DisplayDevice) {
+pub async fn render_running_gui(display: &mut DisplayDevice) {
     ///////////////////////////////
     // Render Graphics
     ///////////////////////////////
-    let prev_rpm = 1500;
-    let prev_speed = 20;
+    let relay_fc_pack = RELAY_MOTOR_PACK.lock().await;
 
-    let rpm = 1500;
-    let speed = 20;
+    let prev_rpm = ((relay_fc_pack.mtr_volt - 100) * 100) % 3000;
+    let prev_speed = (relay_fc_pack.mtr_volt - 1) % 99;
+
+    let rpm = (relay_fc_pack.mtr_volt * 100) % 3000;
+    let speed = relay_fc_pack.mtr_volt % 99 + 1;
+    drop(relay_fc_pack);
+
     render_tach_widgets(display, rpm as u32, prev_rpm as u32);
     render_speed_widgets(display, speed as u32, prev_speed as u32);
-    render_efficiency_gui(display, 50, 50);
-    render_battery_gui(display, 50, 50);
+    render_efficiency_gui(display, speed as u8, speed as u8 - 1);
+    render_battery_gui(display, speed as u8, speed as u8 - 1);
 }
