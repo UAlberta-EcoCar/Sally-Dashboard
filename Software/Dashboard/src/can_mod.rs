@@ -35,7 +35,7 @@ pub const TX_BUF_SIZE: usize = 1;
 /// Buffer Size for the CAN RX buffer
 pub const RX_BUF_SIZE: usize = 20;
 
-pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_RUN);
+pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_STRTP);
 
 const BINCODE_CONFIG: Configuration<bincode::config::BigEndian, bincode::config::Fixint> =
     bincode::config::standard()

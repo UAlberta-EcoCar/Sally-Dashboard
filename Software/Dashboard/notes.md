@@ -9,3 +9,4 @@
 * Charging UI fps = 6
 * Running UI fps = 25
 * Standby UI fps = 5
+* Screen Clear = 630 ms
