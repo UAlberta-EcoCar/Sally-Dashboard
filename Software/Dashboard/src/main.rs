@@ -5,7 +5,6 @@ use dashboard::can_mod::{RX_BUF_SIZE, TX_BUF_SIZE, can_receive_task};
 use dashboard::display_mod::display_task;
 use dashboard::led_mod::led_task;
 use defmt::*;
-use display_interface_spi::SPIInterface;
 use embassy_executor::Spawner;
 use embassy_stm32::can::filter::Mask32;
 use embassy_stm32::can::{
@@ -21,7 +20,12 @@ use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm};
 use embassy_stm32::{Config, bind_interrupts, can, peripherals::*};
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
-use ili9488_rs::{Ili9488, Orientation, Rgb666Mode};
+// use ili9488_rs::{Ili9488, Orientation, Rgb666Mode};
+use mipidsi::Builder;
+use mipidsi::interface::SpiInterface;
+use mipidsi::models::ILI9488Rgb666;
+use mipidsi::options::Orientation;
+use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
@@ -164,16 +168,30 @@ async fn main(spawner: Spawner) {
     let mut delay = Delay;
 
     // Turn on LCD Display
+    static DISPLAY_BUFFER: StaticCell<[u8; 512]> = StaticCell::new();
+    let spi_buffer = DISPLAY_BUFFER.init([0u8; 512]);
     let spi_device = ExclusiveDevice::new_no_delay(spi, lcd_cs).unwrap();
-    let spi_interface = SPIInterface::new(spi_device, lcd_dc);
-    let display = Ili9488::new(
-        spi_interface,
-        lcd_reset,
-        &mut delay,
-        Orientation::LandscapeFlipped,
-        Rgb666Mode,
-    )
-    .unwrap();
+    let spi_interface = SpiInterface::new(spi_device, lcd_dc, spi_buffer);
+
+    let display = Builder::new(ILI9488Rgb666, spi_interface)
+        .reset_pin(lcd_reset)
+        .color_order(mipidsi::options::ColorOrder::Bgr)
+        .orientation(
+            Orientation::new()
+                .rotate(mipidsi::options::Rotation::Deg270)
+                .flip_vertical(),
+        )
+        .init(&mut delay)
+        .unwrap();
+    // let spi_interface = SPIInterface::new(spi_device, lcd_dc);
+    // let display = Ili9488::new(
+    //     spi_interface,
+    //     lcd_reset,
+    //     &mut delay,
+    //     Orientation::LandscapeFlipped,
+    //     Rgb666Mode,
+    // )
+    // .unwrap();
     info!("Configured ILI9488 Display");
 
     ////////////////////////////////3

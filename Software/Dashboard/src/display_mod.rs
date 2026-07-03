@@ -38,15 +38,21 @@
 
 use defmt::{info, trace};
 use display_interface_spi::SPIInterface;
-use embassy_stm32::gpio::Output;
 use embassy_stm32::spi::Spi;
+use embassy_stm32::{gpio::Output, mode::Async};
 use embassy_time::{Instant, Timer};
+use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::{
     pixelcolor::Rgb666,
     prelude::{Point, RgbColor},
 };
-use embedded_hal_bus::spi::ExclusiveDevice;
+use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 use ili9488_rs::{Ili9488, Rgb666Mode};
+use mipidsi::{
+    Display,
+    interface::{Interface, SpiInterface},
+    models::ILI9488Rgb666,
+};
 
 use crate::eco_can::RelayState;
 use crate::{
@@ -57,20 +63,40 @@ use crate::{
         standby::render_standby_gui, startup::render_startup_gui,
     },
 };
-
 /// Type Alias for ILI9488 driver, the current display driver
-pub type DisplayDevice = Ili9488<
-    SPIInterface<
-        ExclusiveDevice<
-            Spi<'static, embassy_stm32::mode::Async>,
-            Output<'static>,
-            embedded_hal_bus::spi::NoDelay,
-        >,
+///
+// Display<DI, MODEL, RST
+// pub type DisplayDevice = Display<
+//     ExclusiveDevice<
+//         SpiInterface<'static, Spi<'static, embassy_stm32::mode::Async>, Output<'static>>,
+//         Output<'static>,
+//         embedded_hal_bus::spi::NoDelay,
+//     >,
+//     ILI9488Rgb666,
+//     Output<'static>,
+// >;
+pub type DisplayDevice = Display<
+    SpiInterface<
+        'static,
+        ExclusiveDevice<Spi<'static, Async>, Output<'static>, NoDelay>,
         Output<'static>,
     >,
+    ILI9488Rgb666,
     Output<'static>,
-    Rgb666Mode,
 >;
+
+// pub type DisplayDevice = Ili9488<
+//     SPIInterface<
+//         ExclusiveDevice<
+//             Spi<'static, embassy_stm32::mode::Async>,
+//             Output<'static>,
+//             embedded_hal_bus::spi::NoDelay,
+//         >,
+//         Output<'static>,
+//     >,
+//     Output<'static>,
+//     Rgb666Mode,
+// >;
 
 pub const DISPLAY_WIDTH: u32 = 480;
 pub const DISPLAY_HEIGHT: u32 = 320;
@@ -81,7 +107,7 @@ pub const CENTER_POINT: Point = Point::new(DISPLAY_WIDTH as i32 / 2, DISPLAY_HEI
 pub async fn display_task(mut display: DisplayDevice) {
     info!("Initializing LCD Screen");
     let start = Instant::now().as_millis();
-    display.clear_screen(Rgb666::GREEN).unwrap();
+    display.clear(Rgb666::GREEN).unwrap();
     let end = Instant::now().as_millis();
     info!("Full Screen Clear: {} ms", end - start);
 
@@ -97,7 +123,7 @@ pub async fn display_task(mut display: DisplayDevice) {
 
         // Inialized display screen if switching relay state
         if prev_relay_state != relay_state {
-            let _ = display.clear_screen_fast(ili9488_rs::Rgb111::BLACK);
+            let _ = display.clear(Rgb666::BLACK);
 
             match relay_state {
                 RelayState::RELAY_STRTP => render_startup_gui(&mut display),
