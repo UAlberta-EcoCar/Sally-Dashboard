@@ -50,6 +50,13 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
             RelayState::RELAY_STBY => led_standby(&mut led_array),
             RelayState::RELAY_RUN => led_running(&mut led_array),
         }
+        // let mut led_array: [RGB; LED_COUNT] = [
+        //     RGB::new(0, 0, 0),
+        //     RGB::new(0, 0, 0),
+        //     RGB::new(0, 0, 0),
+        //     RGB::new(0, 0, 0),
+        //     RGB::new(0, 0, 0),
+        // ];
         let _ = dma_buffer.set_dma_buffer(&led_array, None);
         // Output pwm waveform to set LEDs
         led_in

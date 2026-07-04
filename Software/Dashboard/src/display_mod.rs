@@ -38,15 +38,17 @@
 
 use defmt::{info, trace};
 use display_interface_spi::SPIInterface;
-use embassy_stm32::gpio::Output;
 use embassy_stm32::spi::Spi;
+use embassy_stm32::{gpio::Output, mode::Async};
 use embassy_time::{Instant, Timer};
+use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::{
     pixelcolor::Rgb666,
     prelude::{Point, RgbColor},
 };
-use embedded_hal_bus::spi::ExclusiveDevice;
-use ili9488_rs::{Ili9488, Rgb666Mode};
+use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
+use mipidsi::models::ILI9488Rgb666;
+use mipidsi::{Display, interface::SpiInterface};
 
 use crate::eco_can::RelayState;
 use crate::{
@@ -59,17 +61,14 @@ use crate::{
 };
 
 /// Type Alias for ILI9488 driver, the current display driver
-pub type DisplayDevice = Ili9488<
-    SPIInterface<
-        ExclusiveDevice<
-            Spi<'static, embassy_stm32::mode::Async>,
-            Output<'static>,
-            embedded_hal_bus::spi::NoDelay,
-        >,
+pub type DisplayDevice = Display<
+    SpiInterface<
+        'static,
+        ExclusiveDevice<Spi<'static, Async>, Output<'static>, NoDelay>,
         Output<'static>,
     >,
+    ILI9488Rgb666,
     Output<'static>,
-    Rgb666Mode,
 >;
 
 pub const DISPLAY_WIDTH: u32 = 480;
@@ -81,7 +80,7 @@ pub const CENTER_POINT: Point = Point::new(DISPLAY_WIDTH as i32 / 2, DISPLAY_HEI
 pub async fn display_task(mut display: DisplayDevice) {
     info!("Time taken to do a full screen clear:");
     let start = Instant::now().as_millis();
-    display.clear_screen(Rgb666::WHITE).unwrap();
+    display.clear(Rgb666::GREEN).unwrap();
     let end = Instant::now().as_millis();
     info!("Full Screen Clear: {} ms", end - start);
 

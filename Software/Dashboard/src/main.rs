@@ -5,7 +5,6 @@ use dashboard::can_mod::{RX_BUF_SIZE, TX_BUF_SIZE, can_receive_task};
 use dashboard::display_mod::display_task;
 use dashboard::led_mod::led_task;
 use defmt::*;
-use display_interface_spi::SPIInterface;
 use embassy_executor::Spawner;
 use embassy_stm32::exti::ExtiInput;
 use embassy_stm32::gpio::{Level, Output, OutputType, Pull, Speed};
@@ -16,7 +15,10 @@ use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm};
 use embassy_stm32::{Config, bind_interrupts, can, peripherals::*};
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
-use ili9488_rs::{Ili9488, Orientation, Rgb666Mode};
+use mipidsi::Builder;
+use mipidsi::interface::SpiInterface;
+use mipidsi::models::ILI9488Rgb666;
+use mipidsi::options::Orientation;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -169,16 +171,22 @@ async fn main(spawner: Spawner) {
     let mut delay = Delay;
 
     // Turn on LCD Display
+    static DISPLAY_BUFFER: StaticCell<[u8; 512]> = StaticCell::new();
+    let spi_buffer = DISPLAY_BUFFER.init([0u8; 512]);
     let spi_device = ExclusiveDevice::new_no_delay(spi, lcd_cs).unwrap();
-    let spi_interface = SPIInterface::new(spi_device, lcd_dc);
-    let display = Ili9488::new(
-        spi_interface,
-        lcd_reset,
-        &mut delay,
-        Orientation::LandscapeFlipped,
-        Rgb666Mode,
-    )
-    .unwrap();
+    let spi_interface = SpiInterface::new(spi_device, lcd_dc, spi_buffer);
+
+    let display = Builder::new(ILI9488Rgb666, spi_interface)
+        .reset_pin(lcd_reset)
+        .color_order(mipidsi::options::ColorOrder::Bgr)
+        .orientation(
+            Orientation::new()
+                .rotate(mipidsi::options::Rotation::Deg270)
+                .flip_vertical(),
+        )
+        .init(&mut delay)
+        .unwrap();
+
     info!("Configured ILI9488 Display");
 
     ////////////////////////////////3
@@ -186,8 +194,8 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     info!("Spawning Tasks");
     spawner.spawn(can_receive_task(can)).unwrap();
-    spawner.spawn(led_task(led_in, led_dma)).unwrap();
+    // spawner.spawn(led_task(led_in, led_dma)).unwrap();
     spawner.spawn(display_task(display)).unwrap();
-    spawner.spawn(btn1_task(btn1)).unwrap();
-    spawner.spawn(btn2_task(btn2)).unwrap();
+    // spawner.spawn(btn1_task(btn1)).unwrap();
+    // spawner.spawn(btn2_task(btn2)).unwrap();
 }
