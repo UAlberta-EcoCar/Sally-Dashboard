@@ -31,7 +31,7 @@ bind_interrupts!(struct Irqs {
 pub const TX_BUF_SIZE: usize = 2;
 /// Buffer Size for the CAN RX buffer
 pub const RX_BUF_SIZE: usize = 20;
-
+// Default baud rate is 1 MHz
 const CAN_BAUD_RATE: u32 = 100_000;
 
 const SPI_BUFFER: usize = 512;
@@ -70,16 +70,38 @@ async fn main(spawner: Spawner) {
 
     let peripherals = embassy_stm32::init(config);
 
+    let can_rx = peripherals.PB5;
+    let can_tx = peripherals.PB6;
+    let can_stby = peripherals.PB7;
+    let can_peripheral = peripherals.FDCAN2;
+
+    let btn1_pin = peripherals.PB3;
+    let btn2_pin = peripherals.PB4;
+
+    let led_pwm = peripherals.PA0;
+    let led_timer = peripherals.TIM2;
+
+    let spi_sck = peripherals.PA5;
+    let spi_miso = peripherals.PA6;
+    let spi_mosi = peripherals.PA7;
+    let spi_peripheral = peripherals.SPI1;
+    let spi_tx_dma = peripherals.DMA1_CH1;
+    let spi_rx_dma = peripherals.DMA1_CH2;
+
+    let touch_cs = peripherals.PA9;
+    let _touch_irq = peripherals.PA8;
+    let lcd_cs = peripherals.PA4;
+    let lcd_reset = peripherals.PB0;
+    let lcd_bright = peripherals.PA2;
+    let lcd_dc = peripherals.PA3;
+
     ////////////////////////////////
     // Initialize CAN
     ////////////////////////////////
     static _TX_BUF: StaticCell<can::TxFdBuf<TX_BUF_SIZE>> = StaticCell::new();
     static _RX_BUF: StaticCell<can::RxFdBuf<RX_BUF_SIZE>> = StaticCell::new();
-    let can_rx = peripherals.PB5;
-    let can_tx = peripherals.PB6;
-    let can_stby = peripherals.PB7;
 
-    let mut can = can::CanConfigurator::new(peripherals.FDCAN2, can_rx, can_tx, Irqs);
+    let mut can = can::CanConfigurator::new(can_peripheral, can_rx, can_tx, Irqs);
     let can_stby = Output::new(can_stby, Level::Low, Speed::Low);
     // Because the destructor resets the gpio pin's state, use mem::forget to drop the variable
     core::mem::forget(can_stby);
@@ -102,13 +124,13 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize External Interrupt Buttons
     ////////////////////////////////
-    let btn1 = ExtiInput::new(peripherals.PB3, peripherals.EXTI3, Pull::Up);
-    let btn2 = ExtiInput::new(peripherals.PB4, peripherals.EXTI4, Pull::Up);
+    let btn1 = ExtiInput::new(btn1_pin, peripherals.EXTI3, Pull::Up);
+    let btn2 = ExtiInput::new(btn2_pin, peripherals.EXTI4, Pull::Up);
 
     ////////////////////////////////
     // Initialize LED Lights
     ////////////////////////////////
-    let led_in = PwmPin::new(peripherals.PA0, OutputType::PushPull);
+    let led_in = PwmPin::new(led_pwm, OutputType::PushPull);
     let led_dma = peripherals.DMA2_CH1;
 
     // PWM_FREQ = 1 / data_transfer_time = 1 / 1.25us = 800kHz
@@ -118,7 +140,7 @@ async fn main(spawner: Spawner) {
     // The prescaler and ARR are automatically set
     // Given this system frequency and pwm frequency the max duty cycle will be 50
     let mut led_in = SimplePwm::new(
-        peripherals.TIM2,
+        led_timer,
         Some(led_in),
         None,
         None,
@@ -139,17 +161,13 @@ async fn main(spawner: Spawner) {
     spi_config.miso_pull = embassy_stm32::gpio::Pull::Up;
     spi_config.gpio_speed = Speed::VeryHigh;
 
-    let spi_sck = peripherals.PA5;
-    let spi_miso = peripherals.PA6;
-    let spi_mosi = peripherals.PA7;
-
     let spi = Spi::new(
-        peripherals.SPI1,
+        spi_peripheral,
         spi_sck,
         spi_mosi,
         spi_miso,
-        peripherals.DMA1_CH1,
-        peripherals.DMA1_CH2,
+        spi_tx_dma,
+        spi_rx_dma,
         spi_config,
     );
 
@@ -158,8 +176,6 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize Touch Screen Peripherals
     ////////////////////////////////
-    let touch_cs = peripherals.PA9;
-    let _touch_irq = peripherals.PA8;
 
     // CS is Active Low
     let _touch_cs = Output::new(touch_cs, Level::High, Speed::VeryHigh);
@@ -167,10 +183,6 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize Screen Peripherals
     ////////////////////////////////
-    let lcd_cs = peripherals.PA4;
-    let lcd_reset = peripherals.PB0;
-    let lcd_bright = peripherals.PA2;
-    let lcd_dc = peripherals.PA3;
 
     let lcd_cs = Output::new(lcd_cs, Level::High, Speed::VeryHigh);
     let lcd_reset = Output::new(lcd_reset, Level::Low, Speed::VeryHigh);
