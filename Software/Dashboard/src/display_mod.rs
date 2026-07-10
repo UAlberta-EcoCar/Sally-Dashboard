@@ -4,7 +4,7 @@
 //! is used to render 2D graphics to the screen. Examples for how to use the library can be
 //! found [here](https://docs.rs/embedded-graphics/latest/embedded_graphics/#shapes-and-text).
 //!
-//! The STM32G491KE has 512 Kbytes of Flash memory, and 112 Kbytes of SRAM. Because of the
+//! The STM32G491KE has 512 Kbytes of Flash memory, and 112 Kbytes of SRAM. Because of
 //! low memory constraints, a framebuffer cannot be used.
 //!
 //! # How rendering works
@@ -37,7 +37,6 @@
 //! (rectangles), [source](https://github.com/embedded-graphics/eg-seven-segment/blob/master/src/segment.rs#L39).
 
 use defmt::{info, trace};
-use display_interface_spi::SPIInterface;
 use embassy_stm32::spi::Spi;
 use embassy_stm32::{gpio::Output, mode::Async};
 use embassy_time::{Instant, Timer};
@@ -78,11 +77,10 @@ pub const CENTER_POINT: Point = Point::new(DISPLAY_WIDTH as i32 / 2, DISPLAY_HEI
 /// Responsible for rendering data to the display
 #[embassy_executor::task]
 pub async fn display_task(mut display: DisplayDevice) {
-    info!("Time taken to do a full screen clear:");
     let start = Instant::now().as_millis();
     display.clear(Rgb666::GREEN).unwrap();
     let end = Instant::now().as_millis();
-    info!("Full Screen Clear: {} ms", end - start);
+    info!("Time taken to do a full screen clear: {} ms", end - start);
 
     let mut prev_relay_state = RelayState::RELAY_STRTP;
 
@@ -115,6 +113,6 @@ pub async fn display_task(mut display: DisplayDevice) {
         }
 
         trace!("Display Health check");
-        Timer::after_millis(2000).await;
+        Timer::after_millis(10).await;
     }
 }

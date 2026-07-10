@@ -11,7 +11,7 @@ use defmt::info;
 use embassy_stm32::exti::ExtiInput;
 use embassy_time::Timer;
 
-/// A delay to handle signal bounce. Default at 50ms.
+/// A delay to handle signal bounce. Default 50ms.
 pub const BOUNCE_DELAY: u64 = 50;
 
 #[embassy_executor::task]

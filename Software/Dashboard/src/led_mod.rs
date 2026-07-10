@@ -15,7 +15,7 @@ use rgb_led_pwm_dma_maker::{LedDataComposition, LedDmaBuffer, RGB, calc_dma_buff
 use crate::can_mod::RELAY_STATE;
 use crate::eco_can::RelayState;
 
-// There are 5 LED's on the board
+// There are 5 LED's on the PCB
 const LED_COUNT: usize = 5;
 
 /// Updates the LED lights on the dashboard
@@ -31,69 +31,78 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
     // t1h = T0H / data_transfer_time * max_duty_cycle = 0.4us / 1.25us * 200 =
     let t0h: u16 = 64;
 
-    let mut led_array: [RGB; LED_COUNT] = [
-        RGB::new(3, 0, 0),
-        RGB::new(0, 3, 0),
-        RGB::new(0, 0, 3),
-        RGB::new(0, 3, 3),
-        RGB::new(3, 3, 0),
-    ];
     let mut dma_buffer = LedDmaBuffer::<DMA_BUFFER_LEN>::new(t1h, t0h, LedDataComposition::GRB);
+    let mut led_array: [RGB; LED_COUNT];
+    let mut index = 0;
 
     loop {
-        let relay_state = RELAY_STATE.lock().await;
+        let relay_state_lock = RELAY_STATE.lock().await;
+        let relay_state = relay_state_lock.clone();
+        drop(relay_state_lock);
 
         // Inialized display screen if switching relay state
-        match *relay_state {
-            RelayState::RELAY_STRTP => led_startup(&mut led_array),
-            RelayState::RELAY_CHRGE => led_charging(&mut led_array),
-            RelayState::RELAY_STBY => led_standby(&mut led_array),
-            RelayState::RELAY_RUN => led_running(&mut led_array),
+        match relay_state {
+            RelayState::RELAY_STRTP => {
+                led_array = led_startup();
+                let _ = dma_buffer.set_dma_buffer(&led_array, None);
+            }
+            RelayState::RELAY_CHRGE => {
+                led_array = led_charging();
+                let _ = dma_buffer.set_dma_buffer(&led_array, Some(index));
+                index = (index + 1) % 5;
+            }
+            RelayState::RELAY_STBY => {
+                led_array = led_standby();
+                let _ = dma_buffer.set_dma_buffer(&led_array, None);
+            }
+            RelayState::RELAY_RUN => {
+                led_array = led_running();
+                let _ = dma_buffer.set_dma_buffer(&led_array, Some(index));
+                index = (index + 1) % 5;
+            }
         }
-        // let mut led_array: [RGB; LED_COUNT] = [
-        //     RGB::new(0, 0, 0),
-        //     RGB::new(0, 0, 0),
-        //     RGB::new(0, 0, 0),
-        //     RGB::new(0, 0, 0),
-        //     RGB::new(0, 0, 0),
-        // ];
-        let _ = dma_buffer.set_dma_buffer(&led_array, None);
-        // Output pwm waveform to set LEDs
+        // Output pwm waveform to set LED colors
         led_in
             .waveform::<embassy_stm32::timer::Ch1>(led_dma.reborrow(), dma_buffer.get_dma_buffer())
             .await;
         trace!("LED Health check");
-        Timer::after_millis(600).await;
+        Timer::after_millis(500).await;
     }
 }
 
-fn led_startup(led_array: &mut [RGB; LED_COUNT]) {
-    *led_array = [
+fn led_startup() -> [RGB; LED_COUNT] {
+    [
         RGB::new(3, 0, 0),
         RGB::new(0, 3, 0),
         RGB::new(0, 0, 3),
         RGB::new(0, 3, 3),
         RGB::new(3, 3, 0),
-    ];
+    ]
 }
-fn led_charging(led_array: &mut [RGB; LED_COUNT]) {
-    *led_array = [
+fn led_charging() -> [RGB; LED_COUNT] {
+    [
         RGB::new(0, 3, 0),
         RGB::new(0, 3, 0),
         RGB::new(0, 3, 0),
         RGB::new(0, 3, 0),
         RGB::new(0, 3, 0),
-    ];
+    ]
 }
-fn led_standby(led_array: &mut [RGB; LED_COUNT]) {
-    *led_array = [
+fn led_standby() -> [RGB; LED_COUNT] {
+    [
         RGB::new(3, 0, 0),
         RGB::new(0, 3, 0),
         RGB::new(0, 0, 3),
         RGB::new(0, 3, 3),
         RGB::new(3, 3, 0),
-    ];
+    ]
 }
-fn led_running(led_array: &mut [RGB; LED_COUNT]) {
-    led_array.rotate_left(1);
+fn led_running() -> [RGB; LED_COUNT] {
+    [
+        RGB::new(3, 0, 0),
+        RGB::new(0, 3, 0),
+        RGB::new(0, 0, 3),
+        RGB::new(0, 3, 3),
+        RGB::new(3, 3, 0),
+    ]
 }

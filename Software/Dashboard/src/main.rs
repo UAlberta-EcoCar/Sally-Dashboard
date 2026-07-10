@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 use dashboard::btn_mod::{btn1_task, btn2_task};
-use dashboard::can_mod::{RX_BUF_SIZE, TX_BUF_SIZE, can_receive_task};
+use dashboard::can_mod::can_receive_task;
 use dashboard::display_mod::display_task;
 use dashboard::led_mod::led_task;
 use defmt::*;
@@ -27,6 +27,15 @@ bind_interrupts!(struct Irqs {
     FDCAN2_IT1 => can::IT1InterruptHandler<FDCAN2>;
 });
 
+/// Buffer Size for the CAN TX buffer
+pub const TX_BUF_SIZE: usize = 2;
+/// Buffer Size for the CAN RX buffer
+pub const RX_BUF_SIZE: usize = 20;
+
+const CAN_BAUD_RATE: u32 = 100_000;
+
+const SPI_BUFFER: usize = 512;
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     /////////////////////////////////////////////////
@@ -37,7 +46,10 @@ async fn main(spawner: Spawner) {
     // Initialize Clock
     ////////////////////////////////
     let mut config = Config::default();
+    // NOTE: Changing clock speed to anything not 170 MHz will make the LED colors wrong.
+    // Will effect the PWM frequency and duty cycle.
     {
+        // 170 MHz
         use embassy_stm32::rcc::*;
         // Use external 8 MHz crystal osscillator
         config.rcc.hse = Some(Hse {
@@ -55,6 +67,7 @@ async fn main(spawner: Spawner) {
         config.rcc.mux.fdcansel = mux::Fdcansel::HSE;
         config.rcc.sys = Sysclk::PLL1_R;
     }
+
     let peripherals = embassy_stm32::init(config);
 
     ////////////////////////////////
@@ -67,21 +80,18 @@ async fn main(spawner: Spawner) {
     let can_stby = peripherals.PB7;
 
     let mut can = can::CanConfigurator::new(peripherals.FDCAN2, can_rx, can_tx, Irqs);
-    let _can_stby = Output::new(can_stby, Level::Low, Speed::Low);
+    let can_stby = Output::new(can_stby, Level::Low, Speed::Low);
     // Because the destructor resets the gpio pin's state, use mem::forget to drop the variable
-    core::mem::forget(_can_stby);
+    core::mem::forget(can_stby);
 
     can.properties().set_extended_filter(
         can::filter::ExtendedFilterSlot::_0,
         can::filter::ExtendedFilter::accept_all_into_fifo1(),
     );
     // Nominal Baud Rate: 1M bits/s
-    can.set_bitrate(1_000_000);
+    can.set_bitrate(CAN_BAUD_RATE); // for prototyping
 
-    let can = can.start(can::OperatingMode::ExternalLoopbackMode);
-
-    // Use internal loop back mode for debugging
-    // let can = can.start(can::OperatingMode::InternalLoopbackMode);
+    let can = can.start(can::OperatingMode::NormalOperationMode);
 
     // let can = can.buffered_fd(
     //     TX_BUF.init(can::TxFdBuf::new()),
@@ -124,6 +134,7 @@ async fn main(spawner: Spawner) {
     // Initialize SPI
     ////////////////////////////////
     let mut spi_config = spi::Config::default();
+    // 40 MHz is the maximum frequency the ILI9488 can handle
     spi_config.frequency = Hertz::mhz(40);
     spi_config.miso_pull = embassy_stm32::gpio::Pull::Up;
     spi_config.gpio_speed = Speed::VeryHigh;
@@ -171,8 +182,8 @@ async fn main(spawner: Spawner) {
     let mut delay = Delay;
 
     // Turn on LCD Display
-    static DISPLAY_BUFFER: StaticCell<[u8; 512]> = StaticCell::new();
-    let spi_buffer = DISPLAY_BUFFER.init([0u8; 512]);
+    static DISPLAY_BUFFER: StaticCell<[u8; SPI_BUFFER]> = StaticCell::new();
+    let spi_buffer = DISPLAY_BUFFER.init([0u8; SPI_BUFFER]);
     let spi_device = ExclusiveDevice::new_no_delay(spi, lcd_cs).unwrap();
     let spi_interface = SpiInterface::new(spi_device, lcd_dc, spi_buffer);
 
@@ -194,8 +205,8 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     info!("Spawning Tasks");
     spawner.spawn(can_receive_task(can)).unwrap();
-    // spawner.spawn(led_task(led_in, led_dma)).unwrap();
+    spawner.spawn(led_task(led_in, led_dma)).unwrap();
     spawner.spawn(display_task(display)).unwrap();
-    // spawner.spawn(btn1_task(btn1)).unwrap();
-    // spawner.spawn(btn2_task(btn2)).unwrap();
+    spawner.spawn(btn1_task(btn1)).unwrap();
+    spawner.spawn(btn2_task(btn2)).unwrap();
 }
