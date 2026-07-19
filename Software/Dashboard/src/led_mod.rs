@@ -48,8 +48,7 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
             }
             RelayState::RELAY_CHRGE => {
                 led_array = led_charging();
-                let _ = dma_buffer.set_dma_buffer(&led_array, Some(index));
-                index = (index + 1) % 5;
+                let _ = dma_buffer.set_dma_buffer(&led_array, Some(index % LED_COUNT as i32));
             }
             RelayState::RELAY_STBY => {
                 led_array = led_standby();
@@ -57,10 +56,10 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
             }
             RelayState::RELAY_RUN => {
                 led_array = led_running();
-                let _ = dma_buffer.set_dma_buffer(&led_array, Some(index));
-                index = (index + 1) % 5;
+                let _ = dma_buffer.set_dma_buffer(&led_array, Some(index % LED_COUNT as i32));
             }
         }
+        index = index.wrapping_add_unsigned(1);
         // Output pwm waveform to set LED colors
         led_in
             .waveform::<embassy_stm32::timer::Ch1>(led_dma.reborrow(), dma_buffer.get_dma_buffer())
@@ -81,7 +80,7 @@ fn led_startup() -> [RGB; LED_COUNT] {
 }
 fn led_charging() -> [RGB; LED_COUNT] {
     [
-        RGB::new(0, 3, 0),
+        RGB::new(0, 0, 0),
         RGB::new(0, 3, 0),
         RGB::new(0, 3, 0),
         RGB::new(0, 3, 0),

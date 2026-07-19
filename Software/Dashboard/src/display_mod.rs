@@ -94,6 +94,8 @@ pub async fn display_task(mut display: DisplayDevice) {
 
         // Inialized display screen if switching relay state
         if prev_relay_state != relay_state {
+            display.clear(Rgb666::BLACK).unwrap();
+
             match relay_state {
                 RelayState::RELAY_STRTP => render_startup_gui(&mut display),
                 RelayState::RELAY_CHRGE => init_render_charging_gui(&mut display),

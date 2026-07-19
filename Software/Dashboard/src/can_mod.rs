@@ -35,7 +35,7 @@ const BINCODE_CONFIG: Configuration<bincode::config::BigEndian, bincode::config:
         .with_big_endian()
         .with_fixed_int_encoding();
 
-pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_STRTP);
+pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_RUN);
 
 pub static FET_DATA: Mutex<ThreadModeRawMutex, FDCAN_FetPack_t> = Mutex::new(FDCAN_FetPack_t {
     fet_config: 0,
@@ -113,12 +113,10 @@ pub static RELAY_MOTOR_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
 /// Responsible for handling the reception of CAN messages
 #[embassy_executor::task]
 pub async fn can_receive_task(mut can: Can<'static>) {
-    // pub async fn can_receive_task(mut can: BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SIZE>) {
     // Use the FD API's even if we don't get FD packets.
     let debug = true;
     if debug {
         _debug_can_rx(&mut can).await;
-        // _debug_can_tx(can).await;
     }
     loop {
         // Await CAN frame
@@ -126,18 +124,31 @@ pub async fn can_receive_task(mut can: Can<'static>) {
             Ok(envelope) => process_rx_can_frame(&envelope.frame).await,
             Err(err) => error!("Error in frame: {}", err),
         }
+        // Sally uses ~50 messages per second
         Timer::after_millis(1).await;
+    }
+}
+
+/// Responsible for handling the reception of CAN messages
+#[embassy_executor::task]
+pub async fn can_transmit_task(mut can: Can<'static>) {
+    // Use the FD API's even if we don't get FD packets.
+    let debug = true;
+    if debug {
+        _debug_can_tx(&mut can).await;
     }
 }
 
 async fn _debug_can_rx(can: &mut Can<'static>) {
     let mut last_read_ts = embassy_time::Instant::now();
+    Timer::after_millis(10).await;
 
     loop {
         // Reading CAN Frame
         info!("Awaiting CAN Frame...");
         match can.read_fd().await {
             Ok(envelope) => {
+                info!("Received CAN frame");
                 let (ts, rx_frame) = (envelope.ts, envelope.frame);
                 let delta = (ts - last_read_ts).as_millis();
                 last_read_ts = ts;
@@ -161,10 +172,9 @@ async fn _debug_can_rx(can: &mut Can<'static>) {
     }
 }
 
-async fn _debug_can_tx(mut can: Can<'static>) {
+async fn _debug_can_tx(can: &mut Can<'static>) {
     let mut tx_data = [0; 64];
     loop {
-        // for _ in 0..40 {
         let mut pack = RELAY_MOTOR_PACK.lock().await;
         pack.mtr_curr += 1;
 
@@ -192,24 +202,6 @@ async fn _debug_can_tx(mut can: Can<'static>) {
         tx_data = [0; 64];
     }
 }
-
-/// Process the remaining CAN frames in the RX buffer
-// async fn _drain_rx_can_buffer(can: &BufferedCanFd<'static, TX_BUF_SIZE, RX_BUF_SIZE>) {
-//     // repeatedly call try_receive() until the buffer is empty
-//     let reader = can.reader();
-//     for _ in 0..RX_BUF_SIZE {
-//         if let Ok(frame) = reader.try_receive() {
-//             match frame {
-//                 Ok(envelope) => {
-//                     process_rx_can_frame(&envelope.frame).await;
-//                 }
-//                 Err(err) => error!("CAN Frame Error: {}", err),
-//             }
-//         } else {
-//             return;
-//         }
-//     }
-// }
 
 /// Decodes a CAN frame and handles decode errors
 async fn process_rx_can_frame(rx_frame: &FdFrame) {

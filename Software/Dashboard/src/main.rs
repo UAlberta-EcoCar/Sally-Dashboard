@@ -27,14 +27,10 @@ bind_interrupts!(struct Irqs {
     FDCAN2_IT1 => can::IT1InterruptHandler<FDCAN2>;
 });
 
-/// Buffer Size for the CAN TX buffer
-pub const TX_BUF_SIZE: usize = 2;
-/// Buffer Size for the CAN RX buffer
-pub const RX_BUF_SIZE: usize = 20;
 // Default baud rate is 1 MHz
 const CAN_BAUD_RATE: u32 = 100_000;
-
-const SPI_BUFFER: usize = 512;
+// Size of the spi buffer, longer buffers have diminishing returns
+const SPI_BUFFER_SIZE: usize = 512;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -98,9 +94,6 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize CAN
     ////////////////////////////////
-    static _TX_BUF: StaticCell<can::TxFdBuf<TX_BUF_SIZE>> = StaticCell::new();
-    static _RX_BUF: StaticCell<can::RxFdBuf<RX_BUF_SIZE>> = StaticCell::new();
-
     let mut can = can::CanConfigurator::new(can_peripheral, can_rx, can_tx, Irqs);
     let can_stby = Output::new(can_stby, Level::Low, Speed::Low);
     // Because the destructor resets the gpio pin's state, use mem::forget to drop the variable
@@ -188,14 +181,14 @@ async fn main(spawner: Spawner) {
     let lcd_reset = Output::new(lcd_reset, Level::Low, Speed::VeryHigh);
     // Turn the LCD's backlight on indefinetly
     // Because the destructor resets the gpio pin's state, use mem::forget to drop the variable
-    let _lcd_bright = Output::new(lcd_bright, Level::High, Speed::Medium);
+    let _lcd_bright = Output::new(lcd_bright, Level::High, Speed::Low);
     core::mem::forget(_lcd_bright);
     let lcd_dc = Output::new(lcd_dc, Level::Low, Speed::VeryHigh);
     let mut delay = Delay;
 
     // Turn on LCD Display
-    static DISPLAY_BUFFER: StaticCell<[u8; SPI_BUFFER]> = StaticCell::new();
-    let spi_buffer = DISPLAY_BUFFER.init([0u8; SPI_BUFFER]);
+    static DISPLAY_BUFFER: StaticCell<[u8; SPI_BUFFER_SIZE]> = StaticCell::new();
+    let spi_buffer = DISPLAY_BUFFER.init([0u8; SPI_BUFFER_SIZE]);
     let spi_device = ExclusiveDevice::new_no_delay(spi, lcd_cs).unwrap();
     let spi_interface = SpiInterface::new(spi_device, lcd_dc, spi_buffer);
 
