@@ -9,10 +9,13 @@
 //!
 use defmt::info;
 use embassy_stm32::exti::ExtiInput;
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, signal::Signal};
 use embassy_time::Timer;
 
 /// A delay to handle signal bounce. Default 50ms.
-pub const BOUNCE_DELAY: u64 = 50;
+pub const BOUNCE_DELAY: u64 = 100;
+
+pub static BTN_SIGNAL: Signal<ThreadModeRawMutex, bool> = Signal::new();
 
 #[embassy_executor::task]
 pub async fn btn1_task(mut btn1: ExtiInput<'static>) {
@@ -21,6 +24,8 @@ pub async fn btn1_task(mut btn1: ExtiInput<'static>) {
         btn1.wait_for_falling_edge().await;
         info!("Btn 1 Pressed!");
         Timer::after_millis(BOUNCE_DELAY).await;
+
+        BTN_SIGNAL.signal(true);
 
         i += 1;
         btn1.wait_for_high().await;

@@ -19,15 +19,18 @@ use bincode::{
     error::{DecodeError, EncodeError},
 };
 use defmt::*;
-use embassy_stm32::can::{Can, Frame, frame::FdFrame};
+use embassy_stm32::can::{CanRx, CanTx, Frame, frame::FdFrame};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 use embassy_time::Timer;
 use embedded_can::Id;
 
-use crate::eco_can::{
-    ECOCAN_H2Pack1_t, ECOCAN_H2Pack2_t, FDCAN_BOOSTPack1_t, FDCAN_BOOSTPack2_t, FDCAN_BOOSTPack3_t,
-    FDCAN_FccPack1_t, FDCAN_FccPack2_t, FDCAN_FccPack3_t, FDCAN_FetPack_t, FDCAN_RelPackCap_t,
-    FDCAN_RelPackFc_t, FDCAN_RelPackMtr_t, FDCANPack, RelayState,
+use crate::{
+    btn_mod::BTN_SIGNAL,
+    eco_can::{
+        ECOCAN_H2Pack1_t, ECOCAN_H2Pack2_t, FDCAN_BOOSTPack1_t, FDCAN_BOOSTPack2_t,
+        FDCAN_BOOSTPack3_t, FDCAN_FccPack1_t, FDCAN_FccPack2_t, FDCAN_FccPack3_t, FDCAN_FetPack_t,
+        FDCAN_RelPackCap_t, FDCAN_RelPackFc_t, FDCAN_RelPackMtr_t, FDCANPack, RelayState,
+    },
 };
 
 const BINCODE_CONFIG: Configuration<bincode::config::BigEndian, bincode::config::Fixint> =
@@ -112,9 +115,9 @@ pub static RELAY_MOTOR_PACK: Mutex<ThreadModeRawMutex, FDCAN_RelPackMtr_t> =
 
 /// Responsible for handling the reception of CAN messages
 #[embassy_executor::task]
-pub async fn can_receive_task(mut can: Can<'static>) {
+pub async fn can_receive_task(mut can: CanRx<'static>) {
     // Use the FD API's even if we don't get FD packets.
-    let debug = true;
+    let debug = false;
     if debug {
         _debug_can_rx(&mut can).await;
     }
@@ -131,15 +134,35 @@ pub async fn can_receive_task(mut can: Can<'static>) {
 
 /// Responsible for handling the reception of CAN messages
 #[embassy_executor::task]
-pub async fn can_transmit_task(mut can: Can<'static>) {
+pub async fn can_transmit_task(mut can: CanTx<'static>) {
     // Use the FD API's even if we don't get FD packets.
     let debug = true;
     if debug {
         _debug_can_tx(&mut can).await;
     }
+
+    loop {
+        let _ = BTN_SIGNAL.wait().await;
+
+        // Update the relay state
+        let mut relay_state = RELAY_STATE.lock().await;
+        *relay_state = if *relay_state == RelayState::RELAY_STBY {
+            RelayState::RELAY_STRTP
+        } else {
+            RelayState::RELAY_STBY
+        };
+
+        let frame =
+            Frame::new_extended(RelayState::FDCAN_ID, &[relay_state.clone() as u8]).unwrap();
+        drop(relay_state);
+        let _ = can.write(&frame).await;
+
+        trace!("Sent CAN frame");
+        Timer::after_millis(10).await;
+    }
 }
 
-async fn _debug_can_rx(can: &mut Can<'static>) {
+async fn _debug_can_rx(can: &mut CanRx<'static>) {
     let mut last_read_ts = embassy_time::Instant::now();
     Timer::after_millis(10).await;
 
@@ -148,7 +171,6 @@ async fn _debug_can_rx(can: &mut Can<'static>) {
         info!("Awaiting CAN Frame...");
         match can.read_fd().await {
             Ok(envelope) => {
-                info!("Received CAN frame");
                 let (ts, rx_frame) = (envelope.ts, envelope.frame);
                 let delta = (ts - last_read_ts).as_millis();
                 last_read_ts = ts;
@@ -158,7 +180,7 @@ async fn _debug_can_rx(can: &mut Can<'static>) {
                 };
                 // info!("Received: {}", rx_frame);
                 info!(
-                    "Rx id: {:#08x} data len: {} data: {:#04x} --- {}ms",
+                    "Received id: {:#08x} data len: {} data: {:#04x} --- {}ms",
                     id,
                     rx_frame.header().len(),
                     rx_frame.data(),
@@ -172,7 +194,7 @@ async fn _debug_can_rx(can: &mut Can<'static>) {
     }
 }
 
-async fn _debug_can_tx(can: &mut Can<'static>) {
+async fn _debug_can_tx(can: &mut CanTx<'static>) {
     let mut tx_data = [0; 64];
     loop {
         let mut pack = RELAY_MOTOR_PACK.lock().await;
@@ -197,9 +219,6 @@ async fn _debug_can_tx(can: &mut Can<'static>) {
 
         info!("Sent CAN Frame");
         Timer::after_millis(500).await;
-
-        // reset tx_data
-        tx_data = [0; 64];
     }
 }
 

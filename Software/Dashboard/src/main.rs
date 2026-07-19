@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 use dashboard::btn_mod::{btn1_task, btn2_task};
-use dashboard::can_mod::can_receive_task;
+use dashboard::can_mod::{can_receive_task, can_transmit_task};
 use dashboard::display_mod::display_task;
 use dashboard::led_mod::led_task;
 use defmt::*;
@@ -104,14 +104,13 @@ async fn main(spawner: Spawner) {
         can::filter::ExtendedFilter::accept_all_into_fifo1(),
     );
     // Nominal Baud Rate: 1M bits/s
-    can.set_bitrate(CAN_BAUD_RATE); // for prototyping
+    can.set_bitrate(CAN_BAUD_RATE);
+    // Uncomment if CANFD is used
+    // can.set_fd_data_bitrate(1_000_000, false);
 
     let can = can.start(can::OperatingMode::NormalOperationMode);
+    let (can_tx, can_rx, _) = can.split();
 
-    // let can = can.buffered_fd(
-    //     TX_BUF.init(can::TxFdBuf::new()),
-    //     RX_BUF.init(can::RxFdBuf::new()),
-    // );
     info!("Configured CAN");
 
     ////////////////////////////////
@@ -209,7 +208,8 @@ async fn main(spawner: Spawner) {
     // Spawn Tasks
     ////////////////////////////////
     info!("Spawning Tasks");
-    spawner.spawn(can_receive_task(can)).unwrap();
+    spawner.spawn(can_receive_task(can_rx)).unwrap();
+    spawner.spawn(can_transmit_task(can_tx)).unwrap();
     spawner.spawn(led_task(led_in, led_dma)).unwrap();
     spawner.spawn(display_task(display)).unwrap();
     spawner.spawn(btn1_task(btn1)).unwrap();
