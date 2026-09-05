@@ -1,1 +1,0 @@
-/home/dash_admin/Documents/eco_car_projects/Sally-Dashboard/Software/byte_array_test/target/debug/byte_array_test: /home/dash_admin/Documents/eco_car_projects/Sally-Dashboard/Software/byte_array_test/src/main.rs
