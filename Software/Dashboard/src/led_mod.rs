@@ -8,12 +8,14 @@
 use defmt::trace;
 use embassy_stm32::Peri;
 use embassy_stm32::peripherals::{DMA2_CH1, TIM2};
+use embassy_stm32::timer::Channel;
 use embassy_stm32::timer::simple_pwm::SimplePwm;
 use embassy_time::Timer;
 use rgb_led_pwm_dma_maker::{LedDataComposition, LedDmaBuffer, RGB, calc_dma_buffer_length};
 
 use crate::can_mod::RELAY_STATE;
 use crate::eco_can::RelayState;
+use crate::interrupts::Irqs;
 
 // There are 5 LED's on the PCB
 const LED_COUNT: usize = 5;
@@ -62,7 +64,12 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
         index = index.wrapping_add_unsigned(1);
         // Output pwm waveform to set LED colors
         led_in
-            .waveform::<embassy_stm32::timer::Ch1>(led_dma.reborrow(), dma_buffer.get_dma_buffer())
+            .waveform::<embassy_stm32::timer::Ch1, u16, DMA2_CH1>(
+                led_dma.reborrow(),
+                Irqs,
+                Channel::Ch1,
+                dma_buffer.get_dma_buffer(),
+            )
             .await;
         trace!("LED Health check");
         Timer::after_millis(500).await;

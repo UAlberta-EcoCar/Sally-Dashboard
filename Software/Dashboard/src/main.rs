@@ -3,6 +3,7 @@
 use dashboard::btn_mod::{btn1_task, btn2_task};
 use dashboard::can_mod::{can_receive_task, can_transmit_task};
 use dashboard::display_mod::display_task;
+use dashboard::interrupts::Irqs;
 use dashboard::led_mod::led_task;
 use defmt::*;
 use embassy_executor::Spawner;
@@ -12,7 +13,7 @@ use embassy_stm32::spi::{self, Spi};
 use embassy_stm32::time::Hertz;
 use embassy_stm32::timer::low_level::CountingMode;
 use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm};
-use embassy_stm32::{Config, bind_interrupts, can, peripherals::*};
+use embassy_stm32::{Config, can};
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use mipidsi::Builder;
@@ -21,11 +22,6 @@ use mipidsi::models::ILI9488Rgb666;
 use mipidsi::options::Orientation;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
-
-bind_interrupts!(struct Irqs {
-    FDCAN2_IT0 => can::IT0InterruptHandler<FDCAN2>;
-    FDCAN2_IT1 => can::IT1InterruptHandler<FDCAN2>;
-});
 
 // Default baud rate is 1 MHz
 const CAN_BAUD_RATE: u32 = 100_000;
@@ -76,6 +72,7 @@ async fn main(spawner: Spawner) {
 
     let led_pwm = peripherals.PA0;
     let led_timer = peripherals.TIM2;
+    let led_dma = peripherals.DMA2_CH1;
 
     let spi_sck = peripherals.PA5;
     let spi_miso = peripherals.PA6;
@@ -116,14 +113,13 @@ async fn main(spawner: Spawner) {
     ////////////////////////////////
     // Initialize External Interrupt Buttons
     ////////////////////////////////
-    let btn1 = ExtiInput::new(btn1_pin, peripherals.EXTI3, Pull::Up);
-    let btn2 = ExtiInput::new(btn2_pin, peripherals.EXTI4, Pull::Up);
+    let btn1 = ExtiInput::new(btn1_pin, peripherals.EXTI3, Pull::Up, Irqs);
+    let btn2 = ExtiInput::new(btn2_pin, peripherals.EXTI4, Pull::Up, Irqs);
 
     ////////////////////////////////
     // Initialize LED Lights
     ////////////////////////////////
     let led_in = PwmPin::new(led_pwm, OutputType::PushPull);
-    let led_dma = peripherals.DMA2_CH1;
 
     // PWM_FREQ = 1 / data_transfer_time = 1 / 1.25us = 800kHz
     const PWM_FREQ: Hertz = Hertz::khz(800);
@@ -160,6 +156,7 @@ async fn main(spawner: Spawner) {
         spi_miso,
         spi_tx_dma,
         spi_rx_dma,
+        Irqs,
         spi_config,
     );
 
@@ -208,10 +205,10 @@ async fn main(spawner: Spawner) {
     // Spawn Tasks
     ////////////////////////////////
     info!("Spawning Tasks");
-    spawner.spawn(can_receive_task(can_rx)).unwrap();
-    spawner.spawn(can_transmit_task(can_tx)).unwrap();
-    spawner.spawn(led_task(led_in, led_dma)).unwrap();
-    spawner.spawn(display_task(display)).unwrap();
-    spawner.spawn(btn1_task(btn1)).unwrap();
-    spawner.spawn(btn2_task(btn2)).unwrap();
+    spawner.spawn(can_receive_task(can_rx).unwrap());
+    spawner.spawn(can_transmit_task(can_tx).unwrap());
+    spawner.spawn(led_task(led_in, led_dma).unwrap());
+    spawner.spawn(display_task(display).unwrap());
+    spawner.spawn(btn1_task(btn1).unwrap());
+    spawner.spawn(btn2_task(btn2).unwrap());
 }

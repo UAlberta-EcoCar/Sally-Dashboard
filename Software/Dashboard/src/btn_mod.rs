@@ -8,7 +8,7 @@
 //! Note that **Non-Blocking** delays are used to handle signal bouncing.
 //!
 use defmt::info;
-use embassy_stm32::exti::ExtiInput;
+use embassy_stm32::{exti::ExtiInput, mode::Async};
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, signal::Signal};
 use embassy_time::Timer;
 
@@ -18,7 +18,7 @@ pub const BOUNCE_DELAY: u64 = 100;
 pub static BTN_SIGNAL: Signal<ThreadModeRawMutex, bool> = Signal::new();
 
 #[embassy_executor::task]
-pub async fn btn1_task(mut btn1: ExtiInput<'static>) {
+pub async fn btn1_task(mut btn1: ExtiInput<'static, Async>) {
     let mut i = 0;
     loop {
         btn1.wait_for_falling_edge().await;
@@ -35,7 +35,7 @@ pub async fn btn1_task(mut btn1: ExtiInput<'static>) {
 }
 
 #[embassy_executor::task]
-pub async fn btn2_task(mut btn2: ExtiInput<'static>) {
+pub async fn btn2_task(mut btn2: ExtiInput<'static, Async>) {
     let mut i = 0;
     loop {
         btn2.wait_for_falling_edge().await;

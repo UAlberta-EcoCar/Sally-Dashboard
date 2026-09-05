@@ -38,6 +38,7 @@
 
 use defmt::{info, trace};
 use embassy_stm32::spi::Spi;
+use embassy_stm32::spi::mode::Master;
 use embassy_stm32::{gpio::Output, mode::Async};
 use embassy_time::{Instant, Timer};
 use embedded_graphics::draw_target::DrawTarget;
@@ -63,7 +64,7 @@ use crate::{
 pub type DisplayDevice = Display<
     SpiInterface<
         'static,
-        ExclusiveDevice<Spi<'static, Async>, Output<'static>, NoDelay>,
+        ExclusiveDevice<Spi<'static, Async, Master>, Output<'static>, NoDelay>,
         Output<'static>,
     >,
     ILI9488Rgb666,
