@@ -33,9 +33,9 @@ use crate::{
     },
 };
 
-const BINCODE_CONFIG: Configuration<bincode::config::BigEndian, bincode::config::Fixint> =
+const BINCODE_CONFIG: Configuration<bincode::config::LittleEndian, bincode::config::Fixint> =
     bincode::config::standard()
-        .with_big_endian()
+        .with_little_endian()
         .with_fixed_int_encoding();
 
 pub static RELAY_STATE: Mutex<ThreadModeRawMutex, RelayState> = Mutex::new(RelayState::RELAY_RUN);
