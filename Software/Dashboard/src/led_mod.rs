@@ -5,11 +5,11 @@
 //! WS2812B Datasheet: [https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf)
 //! LED driver is based on Phil's Lab video: https://www.youtube.com/watch?v=MqbJTj0Cw6o
 
-use defmt::{debug, trace};
-use embassy_stm32::peripherals::{DMA2_CH1, TIM2};
+use defmt::trace;
+use embassy_stm32::Peri;
+use embassy_stm32::peripherals::{DMA1_CH2, TIM2};
 use embassy_stm32::timer::Channel;
 use embassy_stm32::timer::simple_pwm::SimplePwm;
-use embassy_stm32::{Peri, timer};
 use embassy_time::Timer;
 use rgb_led_pwm_dma_maker::{LedDataComposition, LedDmaBuffer, RGB, calc_dma_buffer_length};
 
@@ -22,18 +22,17 @@ const LED_COUNT: usize = 5;
 
 /// Updates the LED lights on the dashboard
 #[embassy_executor::task]
-pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'static, DMA2_CH1>) {
+pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'static, DMA1_CH2>) {
     // RESET_LENGTH = reset_period / data_transfer_time = 50us / 1.25us = 40
     const RESET_LENGTH: usize = 40;
+    const LED_MEM_SIZE: usize = 8 * 3;
     // Calculate the dma buffer's length at compile time
     // Uses RGB888 formatting
-    const DMA_BUFFER_LEN: usize = calc_dma_buffer_length(8 * 3, LED_COUNT, RESET_LENGTH);
-    // t1h = T1H / data_transfer_time * max_duty_cycle = 0.8us / 1.25us * 200 =
+    const DMA_BUFFER_LEN: usize = calc_dma_buffer_length(LED_MEM_SIZE, LED_COUNT, RESET_LENGTH);
+    // t1h = T1H / data_transfer_time * max_duty_cycle = 0.8us / 1.25us * 212 =
     let t1h: u16 = 136;
-    // let t1h: u16 = 128;
-    // t1h = T0H / data_transfer_time * max_duty_cycle = 0.4us / 1.25us * 200 =
+    // t0h = T0H / data_transfer_time * max_duty_cycle = 0.4us / 1.25us * 212 =
     let t0h: u16 = 68;
-    // let t0h: u16 = 64;
 
     let mut dma_buffer = LedDmaBuffer::<DMA_BUFFER_LEN>::new(t1h, t0h, LedDataComposition::GRB);
     let mut led_array: [RGB; LED_COUNT];
@@ -64,15 +63,21 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
             }
         }
         index = index.wrapping_add_unsigned(1);
+
+        // NOTE: After updating embassy-stm32 to version 0.6.0
+        // the duty cycle array does not work with u16 values for TIM2.
+        // The cause is likely because TIM2 is a 32 bit clock, see https://github.com/embassy-rs/embassy/issues/2522
+        // Error does not exist in version 0.4.0
+
+        // Convert array of u16 values to u32 to fix bug
+        let mut duty = [0u32; DMA_BUFFER_LEN];
+        for (i, d) in duty.iter_mut().enumerate() {
+            *d = u32::from(dma_buffer.get_dma_buffer()[i]);
+        }
+
         // Output pwm waveform to set LED colors
-        debug!("LED Array: {:?}", dma_buffer.get_dma_buffer());
         led_in
-            .waveform::<timer::Ch1, u16, DMA2_CH1>(
-                led_dma.reborrow(),
-                Irqs,
-                Channel::Ch1,
-                dma_buffer.get_dma_buffer(),
-            )
+            .waveform_up(led_dma.reborrow(), Irqs, Channel::Ch1, &duty)
             .await;
         trace!("LED Health check");
         Timer::after_millis(500).await;
@@ -108,10 +113,10 @@ fn led_standby() -> [RGB; LED_COUNT] {
 }
 fn led_running() -> [RGB; LED_COUNT] {
     [
-        RGB::new(10, 0, 0),
-        RGB::new(0, 10, 0),
-        RGB::new(0, 0, 10),
-        RGB::new(0, 10, 10),
-        RGB::new(10, 10, 0),
+        RGB::new(3, 0, 0),
+        RGB::new(0, 3, 0),
+        RGB::new(0, 0, 3),
+        RGB::new(0, 3, 3),
+        RGB::new(3, 3, 0),
     ]
 }

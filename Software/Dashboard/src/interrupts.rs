@@ -8,7 +8,7 @@ bind_interrupts!(
         FDCAN2_IT1 => can::IT1InterruptHandler<FDCAN2>;
         DMA1_CHANNEL1 => dma::InterruptHandler<peripherals::DMA1_CH1>;
         DMA1_CHANNEL2 => dma::InterruptHandler<peripherals::DMA1_CH2>;
-        DMA2_CHANNEL1 => dma::InterruptHandler<peripherals::DMA2_CH1>;
+        DMA1_CHANNEL3 => dma::InterruptHandler<peripherals::DMA1_CH3>;
         EXTI3 => exti::InterruptHandler<interrupt::typelevel::EXTI3>;
         EXTI4 => exti::InterruptHandler<interrupt::typelevel::EXTI4>;
     }

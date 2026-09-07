@@ -72,14 +72,14 @@ async fn main(spawner: Spawner) {
 
     let led_pwm = peripherals.PA0;
     let led_timer = peripherals.TIM2;
-    let led_dma = peripherals.DMA2_CH1;
+    let led_dma = peripherals.DMA1_CH2;
 
     let spi_sck = peripherals.PA5;
     let spi_miso = peripherals.PA6;
     let spi_mosi = peripherals.PA7;
     let spi_peripheral = peripherals.SPI1;
     let spi_tx_dma = peripherals.DMA1_CH1;
-    let spi_rx_dma = peripherals.DMA1_CH2;
+    let spi_rx_dma = peripherals.DMA1_CH3;
 
     let touch_cs = peripherals.PA9;
     let _touch_irq = peripherals.PA8;
@@ -126,7 +126,6 @@ async fn main(spawner: Spawner) {
 
     // Obtain a PWM handler, configure the Timer and Frequency
     // The prescaler and ARR are automatically set
-    // Given this system frequency and pwm frequency the max duty cycle will be 50
     let mut led_in = SimplePwm::new(
         led_timer,
         Some(led_in),
