@@ -3,13 +3,13 @@
 //! Responsible for handling the WS2812B LED lights on the dashboard.
 //!
 //! WS2812B Datasheet: [https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf)
+//! LED driver is based on Phil's Lab video: https://www.youtube.com/watch?v=MqbJTj0Cw6o
 
-// use defmt::info;
-use defmt::trace;
-use embassy_stm32::Peri;
+use defmt::{debug, trace};
 use embassy_stm32::peripherals::{DMA2_CH1, TIM2};
 use embassy_stm32::timer::Channel;
 use embassy_stm32::timer::simple_pwm::SimplePwm;
+use embassy_stm32::{Peri, timer};
 use embassy_time::Timer;
 use rgb_led_pwm_dma_maker::{LedDataComposition, LedDmaBuffer, RGB, calc_dma_buffer_length};
 
@@ -29,9 +29,11 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
     // Uses RGB888 formatting
     const DMA_BUFFER_LEN: usize = calc_dma_buffer_length(8 * 3, LED_COUNT, RESET_LENGTH);
     // t1h = T1H / data_transfer_time * max_duty_cycle = 0.8us / 1.25us * 200 =
-    let t1h: u16 = 128;
+    let t1h: u16 = 136;
+    // let t1h: u16 = 128;
     // t1h = T0H / data_transfer_time * max_duty_cycle = 0.4us / 1.25us * 200 =
-    let t0h: u16 = 64;
+    let t0h: u16 = 68;
+    // let t0h: u16 = 64;
 
     let mut dma_buffer = LedDmaBuffer::<DMA_BUFFER_LEN>::new(t1h, t0h, LedDataComposition::GRB);
     let mut led_array: [RGB; LED_COUNT];
@@ -63,8 +65,9 @@ pub async fn led_task(mut led_in: SimplePwm<'static, TIM2>, mut led_dma: Peri<'s
         }
         index = index.wrapping_add_unsigned(1);
         // Output pwm waveform to set LED colors
+        debug!("LED Array: {:?}", dma_buffer.get_dma_buffer());
         led_in
-            .waveform::<embassy_stm32::timer::Ch1, u16, DMA2_CH1>(
+            .waveform::<timer::Ch1, u16, DMA2_CH1>(
                 led_dma.reborrow(),
                 Irqs,
                 Channel::Ch1,
@@ -105,10 +108,10 @@ fn led_standby() -> [RGB; LED_COUNT] {
 }
 fn led_running() -> [RGB; LED_COUNT] {
     [
-        RGB::new(3, 0, 0),
-        RGB::new(0, 3, 0),
-        RGB::new(0, 0, 3),
-        RGB::new(0, 3, 3),
-        RGB::new(3, 3, 0),
+        RGB::new(10, 0, 0),
+        RGB::new(0, 10, 0),
+        RGB::new(0, 0, 10),
+        RGB::new(0, 10, 10),
+        RGB::new(10, 10, 0),
     ]
 }

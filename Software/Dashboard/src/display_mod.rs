@@ -115,7 +115,7 @@ pub async fn display_task(mut display: DisplayDevice) {
             RelayState::RELAY_RUN => render_running_gui(&mut display),
         }
 
-        trace!("Display Health check");
+        // trace!("Display Health check");
         Timer::after_millis(10).await;
     }
 }

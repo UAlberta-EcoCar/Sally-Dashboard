@@ -214,10 +214,10 @@ pub fn render_running_gui(display: &mut DisplayDevice) {
     ///////////////////////////////
     // Render Graphics
     ///////////////////////////////
-    let prev_rpm = 1500;
+    let prev_rpm = 2000;
     let prev_speed = 20;
 
-    let rpm = 1500;
+    let rpm = 2000;
     let speed = 20;
     render_tach_widgets(display, rpm as u32, prev_rpm as u32);
     render_speed_widgets(display, speed as u32, prev_speed as u32);

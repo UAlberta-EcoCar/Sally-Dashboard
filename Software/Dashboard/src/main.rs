@@ -139,6 +139,7 @@ async fn main(spawner: Spawner) {
     // Enable channel 1
     led_in.ch1().enable();
     info!("Configured LED Peripherals");
+    debug!("PWM Max Duty Cycle: {}", led_in.ch1().max_duty_cycle());
 
     ////////////////////////////////
     // Initialize SPI
@@ -168,6 +169,7 @@ async fn main(spawner: Spawner) {
 
     // CS is Active Low
     let _touch_cs = Output::new(touch_cs, Level::High, Speed::VeryHigh);
+    core::mem::forget(_touch_cs);
 
     ////////////////////////////////
     // Initialize Screen Peripherals
@@ -177,8 +179,8 @@ async fn main(spawner: Spawner) {
     let lcd_reset = Output::new(lcd_reset, Level::Low, Speed::VeryHigh);
     // Turn the LCD's backlight on indefinetly
     // Because the destructor resets the gpio pin's state, use mem::forget to drop the variable
-    let _lcd_bright = Output::new(lcd_bright, Level::High, Speed::Low);
-    core::mem::forget(_lcd_bright);
+    let lcd_bright = Output::new(lcd_bright, Level::High, Speed::Low);
+    core::mem::forget(lcd_bright);
     let lcd_dc = Output::new(lcd_dc, Level::Low, Speed::VeryHigh);
     let mut delay = Delay;
 
