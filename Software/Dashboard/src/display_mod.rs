@@ -112,7 +112,7 @@ pub async fn display_task(mut display: DisplayDevice) {
             RelayState::RELAY_STRTP => (),
             RelayState::RELAY_CHRGE => render_charging_gui(&mut display).await,
             RelayState::RELAY_STBY => render_standby_gui(&mut display, false).await,
-            RelayState::RELAY_RUN => render_running_gui(&mut display),
+            RelayState::RELAY_RUN => render_running_gui(&mut display).await,
         }
 
         // trace!("Display Health check");

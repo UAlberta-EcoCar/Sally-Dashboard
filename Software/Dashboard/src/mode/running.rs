@@ -1,3 +1,6 @@
+use core::sync::atomic::AtomicU32;
+use core::sync::atomic::Ordering::Relaxed;
+
 use eg_seven_segment::SevenSegmentStyleBuilder;
 use embedded_graphics::prelude::Transform;
 use embedded_graphics::prelude::WebColors;
@@ -17,11 +20,14 @@ use super::init_running::{
     BATT_HEIGHT, BATT_POS, BATT_WIDTH, EFF_FONT_HEIGHT, EFF_FONT_WIDTH, EFF_POS, SPEED_FONT_HEIGHT,
     SPEED_FONT_WIDTH,
 };
+use crate::can_mod::BOOST_PACK3_DATA;
+use crate::can_mod::REL_FC_PACK;
 use crate::display_mod::{CENTER_POINT, DisplayDevice};
 
-fn greater_than_10(val: u32) -> bool {
-    val >= 10
-}
+static PREV_RPM: AtomicU32 = AtomicU32::new(0);
+static PREV_SPEED: AtomicU32 = AtomicU32::new(0);
+static PREV_EFFICIENCY: AtomicU32 = AtomicU32::new(0);
+static PREV_BATTERY_HEALTH: AtomicU32 = AtomicU32::new(0);
 
 fn render_speed_widgets(display: &mut DisplayDevice, speed: u32, prev_speed: u32) {
     const DIGIT_SPACING: u32 = 4;
@@ -48,7 +54,7 @@ fn render_speed_widgets(display: &mut DisplayDevice, speed: u32, prev_speed: u32
     let speed_str = str_buffer.format(speed);
 
     // Clear dead digits
-    if greater_than_10(prev_speed) && !greater_than_10(speed) {
+    if (prev_speed >= 10) && (speed < 10) {
         Text::with_alignment("8", CLEAR_TEXT_POS, clear_style, Alignment::Right)
             .draw(display)
             .unwrap();
@@ -210,17 +216,33 @@ fn render_battery_gui(display: &mut DisplayDevice, battery_health: u8, prev_batt
     .unwrap();
 }
 
-pub fn render_running_gui(display: &mut DisplayDevice) {
+pub async fn render_running_gui(display: &mut DisplayDevice) {
     ///////////////////////////////
     // Render Graphics
     ///////////////////////////////
-    let prev_rpm = 2000;
-    let prev_speed = 20;
-
     let rpm = 2000;
+    let prev_rpm = PREV_RPM.load(Relaxed);
+
     let speed = 20;
-    render_tach_widgets(display, rpm as u32, prev_rpm as u32);
-    render_speed_widgets(display, speed as u32, prev_speed as u32);
-    render_efficiency_gui(display, 50, 50);
-    render_battery_gui(display, 50, 50);
+    let prev_speed = PREV_SPEED.load(Relaxed);
+
+    // Get efficiency
+    let efficiency = BOOST_PACK3_DATA.lock().await.efficiency;
+    let prev_efficiency = PREV_EFFICIENCY.load(Relaxed);
+
+    // Get battery voltage
+    let batt_voltage = REL_FC_PACK.lock().await.fc_volt;
+    let prev_battery_health = PREV_BATTERY_HEALTH.load(Relaxed);
+
+    // Render GUI
+    render_tach_widgets(display, rpm as u32, prev_rpm);
+    render_speed_widgets(display, speed as u32, prev_speed);
+    render_efficiency_gui(display, efficiency as u8, prev_efficiency as u8);
+    render_battery_gui(display, batt_voltage as u8, prev_battery_health as u8);
+
+    // Update Previous Values
+    PREV_RPM.store(rpm, Relaxed);
+    PREV_SPEED.store(speed, Relaxed);
+    PREV_EFFICIENCY.store(efficiency, Relaxed);
+    PREV_BATTERY_HEALTH.store(batt_voltage, Relaxed);
 }

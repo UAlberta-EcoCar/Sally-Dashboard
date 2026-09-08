@@ -88,10 +88,8 @@ fn render_battery_meter_gui(display: &mut DisplayDevice, battery_percent: f32) {
 }
 
 pub async fn render_charging_gui(display: &mut DisplayDevice) {
+    let batt_voltage = REL_FC_PACK.lock().await.fc_volt;
     let prev_batt_voltage = PREV_BATT_VOLTAGE.load(Relaxed);
-    let relay_fc_pack = REL_FC_PACK.lock().await;
-    let batt_voltage = relay_fc_pack.fc_volt;
-    drop(relay_fc_pack);
     let batt_voltage_percent = batt_voltage as f32 / 48.0;
 
     render_battery_voltage_gui(display, batt_voltage, prev_batt_voltage);
