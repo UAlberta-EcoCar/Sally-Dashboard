@@ -27,7 +27,7 @@ use embedded_can::Id;
 use crate::{
     btn_mod::BTN_SIGNAL,
     eco_can::{
-        ECOCAN_H2Pack1_t, ECOCAN_H2Pack2_t, FDCAN_BOOSTPack1_t, FDCAN_BOOSTPack2_t,
+        CANDecodeError, ECOCAN_H2Pack1_t, ECOCAN_H2Pack2_t, FDCAN_BOOSTPack1_t, FDCAN_BOOSTPack2_t,
         FDCAN_BOOSTPack3_t, FDCAN_FccPack1_t, FDCAN_FccPack2_t, FDCAN_FccPack3_t, FDCAN_FetPack_t,
         FDCAN_RelPackCap_t, FDCAN_RelPackFc_t, FDCAN_RelPackMtr_t, FDCANPack, RelayState,
     },
@@ -224,8 +224,8 @@ async fn _debug_can_tx(can: &mut CanTx<'static>) {
 
 /// Decodes a CAN frame and handles decode errors
 async fn process_rx_can_frame(rx_frame: &FdFrame) {
-    if let Err(_) = decode_can_frame(&rx_frame).await {
-        error!("CAN Decode Error");
+    if let Err(e) = decode_can_frame(&rx_frame).await {
+        error!("CAN Decode Error: {}", CANDecodeError(e));
     }
 }
 

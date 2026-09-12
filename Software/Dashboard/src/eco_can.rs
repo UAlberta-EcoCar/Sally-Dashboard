@@ -28,7 +28,129 @@
 //! For more information: [https://doc.rust-lang.org/nomicon/other-reprs.html](https://doc.rust-lang.org/nomicon/other-reprs.html)
 
 use bincode::error::DecodeError;
-use defmt::Format;
+use defmt::{Format, write};
+
+#[allow(non_camel_case_types)]
+pub struct CANDecodeError(pub bincode::error::DecodeError);
+
+impl Format for CANDecodeError {
+    fn format(&self, fmt: defmt::Formatter) {
+        match &self.0 {
+            DecodeError::UnexpectedEnd { additional } => {
+                write!(fmt, "UnexpectedEnd(additional={=usize})", additional);
+            }
+            DecodeError::LimitExceeded => write!(fmt, "LimitExceeded"),
+            DecodeError::InvalidIntegerType { expected, found } => {
+                write!(
+                    fmt,
+                    "InvalidIntegerType(expected={}, found={})",
+                    _integer_type_name(expected),
+                    _integer_type_name(found)
+                );
+            }
+            DecodeError::NonZeroTypeIsZero { non_zero_type } => {
+                write!(
+                    fmt,
+                    "NonZeroTypeIsZero(type={})",
+                    _integer_type_name(non_zero_type)
+                );
+            }
+            DecodeError::UnexpectedVariant {
+                type_name,
+                allowed,
+                found,
+            } => {
+                write!(fmt, "UnexpectedVariant(type={}, allowed=", type_name);
+                match allowed {
+                    bincode::error::AllowedEnumVariants::Range { min, max } => {
+                        write!(fmt, "{=u32}..={=u32}", min, max);
+                    }
+                    bincode::error::AllowedEnumVariants::Allowed(values) => {
+                        write!(fmt, "[");
+                        for (index, value) in values.iter().enumerate() {
+                            if index != 0 {
+                                write!(fmt, ", ");
+                            }
+                            write!(fmt, "{=u32}", value);
+                        }
+                        write!(fmt, "]");
+                    }
+                    _ => {
+                        write!(fmt, "Other");
+                    }
+                }
+                write!(fmt, ", found={=u32})", found);
+            }
+            DecodeError::Utf8 { inner } => {
+                write!(
+                    fmt,
+                    "Utf8(valid_up_to={=usize}, error_len=",
+                    inner.valid_up_to()
+                );
+                match inner.error_len() {
+                    Some(error_len) => write!(fmt, "{=usize}", error_len),
+                    None => write!(fmt, "none"),
+                }
+                write!(fmt, ")");
+            }
+            DecodeError::InvalidCharEncoding(bytes) => {
+                write!(fmt, "InvalidCharEncoding(bytes={:?})", bytes);
+            }
+            DecodeError::InvalidBooleanValue(value) => {
+                write!(fmt, "InvalidBooleanValue(value={=u8})", value);
+            }
+            DecodeError::ArrayLengthMismatch { required, found } => {
+                write!(
+                    fmt,
+                    "ArrayLengthMismatch(required={=usize}, found={=usize})",
+                    required, found
+                );
+            }
+            DecodeError::OutsideUsizeRange(value) => {
+                write!(fmt, "OutsideUsizeRange(value={=u64})", value);
+            }
+            DecodeError::EmptyEnum { type_name } => {
+                write!(fmt, "EmptyEnum(type={})", type_name);
+            }
+            DecodeError::InvalidDuration { secs, nanos } => {
+                write!(
+                    fmt,
+                    "InvalidDuration(secs={=u64}, nanos={=u32})",
+                    secs, nanos
+                );
+            }
+            DecodeError::InvalidSystemTime { duration } => {
+                write!(
+                    fmt,
+                    "InvalidSystemTime(secs={=u64}, nanos={=u32})",
+                    duration.as_secs(),
+                    duration.subsec_nanos()
+                );
+            }
+            DecodeError::Other(message) => write!(fmt, "Other(message=\"{}\")", message),
+            _ => write!(fmt, "DecodeError(_)"),
+        }
+    }
+}
+
+fn _integer_type_name(integer_type: &bincode::error::IntegerType) -> &'static str {
+    match integer_type {
+        bincode::error::IntegerType::U8 => "u8",
+        bincode::error::IntegerType::U16 => "u16",
+        bincode::error::IntegerType::U32 => "u32",
+        bincode::error::IntegerType::U64 => "u64",
+        bincode::error::IntegerType::U128 => "u128",
+        bincode::error::IntegerType::Usize => "usize",
+        bincode::error::IntegerType::I8 => "i8",
+        bincode::error::IntegerType::I16 => "i16",
+        bincode::error::IntegerType::I32 => "i32",
+        bincode::error::IntegerType::I64 => "i64",
+        bincode::error::IntegerType::I128 => "i128",
+        bincode::error::IntegerType::Isize => "isize",
+        bincode::error::IntegerType::Reserved => "reserved",
+        _ => "unknown",
+    }
+}
 
 /// Bit Definitions for FET State
 #[allow(non_camel_case_types)]
