@@ -86,13 +86,24 @@ impl TryFrom<u8> for RelayState {
         const RELAY_STRTP: u8 = RelayState::RELAY_STRTP as u8;
         const RELAY_CHRGE: u8 = RelayState::RELAY_CHRGE as u8;
         const RELAY_RUN: u8 = RelayState::RELAY_RUN as u8;
+        const ALLOWED_VARIANTS: bincode::error::AllowedEnumVariants =
+            bincode::error::AllowedEnumVariants::Allowed(&[
+                RELAY_STBY as u32,
+                RELAY_STRTP as u32,
+                RELAY_CHRGE as u32,
+                RELAY_RUN as u32,
+            ]);
 
         match value {
             RELAY_STBY => Ok(RelayState::RELAY_STBY),
             RELAY_STRTP => Ok(RelayState::RELAY_STRTP),
             RELAY_CHRGE => Ok(RelayState::RELAY_CHRGE),
             RELAY_RUN => Ok(RelayState::RELAY_RUN),
-            _ => Err(DecodeError::Other("Invalid Relay State")),
+            _ => Err(DecodeError::UnexpectedVariant {
+                type_name: "RelayState",
+                allowed: &ALLOWED_VARIANTS,
+                found: u32::from(value),
+            }),
         }
     }
 }

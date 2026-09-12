@@ -245,7 +245,11 @@ async fn decode_can_frame(frame: &FdFrame) -> Result<(), DecodeError> {
     match id {
         RelayState::FDCAN_ID => {
             let mut relay_state = RELAY_STATE.lock().await;
-            *relay_state = RelayState::try_from(rx_data[0])?;
+            *relay_state =
+                RelayState::try_from(*rx_data.get(0).ok_or(DecodeError::ArrayLengthMismatch {
+                    required: 1,
+                    found: 0,
+                })?)?;
             debug!("Updated Relay State: {:?}", *relay_state);
             Ok(())
         }
